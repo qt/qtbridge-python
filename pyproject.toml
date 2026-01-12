@@ -1,0 +1,51 @@
+[build-system]
+requires = ["scikit-build-core >= 0.11"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "QtBridge"
+version = "0.0.1"
+requires-python = ">=3.9, <=3.14"
+description = "Python package providing the backend API to interact with QML frontend"
+authors = [
+    { name = "Qt for Python Team", email = "pyside@qt-project.org" },
+]
+license = "LicenseRef-Commercial OR LGPL-3.0-only"
+dependencies = [
+    "shiboken6 > 6.9",
+    "PySide6-Essentials > 6.9",
+    "numpy"
+]
+
+[tool.scikit-build]
+cmake.minimum-version = "3.18"
+cmake.source-dir = "."
+build-dir = "build/{wheel_tag}"
+build.verbose = true
+wheel.py-api = "cp39" # align with PySide6 and shiboken6
+wheel.cmake = true
+build.requires = [
+    "shiboken6",
+    "PySide6-Essentials",
+]
+wheel.exclude = [
+    "*.cpp",
+    "*.h",
+    "CMakeLists.txt",
+    "*.cmake",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pytest-qt",
+    "mypy",
+    "black",
+    "flake8"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+qt_api = "pyside6"
