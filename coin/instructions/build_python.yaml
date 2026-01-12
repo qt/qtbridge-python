@@ -1,0 +1,158 @@
+type: Group
+instructions:
+  - type: ChangeDirectory
+    directory: "{{.AgentWorkingDir}}/qt/qtbridge-python/"
+    maxTimeInSeconds: 300
+    maxTimeBetweenOutput: 120
+    userMessageOnFailure: >
+      Failed to change to python dir
+  - type: ExecuteCommand
+    command: "virtualenv env"
+    maxTimeInSeconds: 6000
+    maxTimeBetweenOutput: 1200
+    disable_if:
+      condition: property
+      property: host.os
+      equals_value: Windows
+    userMessageOnFailure: >
+      Failed to create virtualenv.
+  - type: ExecuteCommand
+    command: "virtualenv -p C:\\Python310_64\\python.exe env"
+    maxTimeInSeconds: 6000
+    maxTimeBetweenOutput: 1200
+    enable_if:
+      condition: property
+      property: host.os
+      equals_value: Windows
+    userMessageOnFailure: >
+      Failed to create virtualenv.
+  - type: EnvironmentVariable
+    variableName: ENV_PIP
+    variableValue: "{{.AgentWorkingDir}}/qt/qtbridge-python/env/bin/pip"
+    disable_if:
+      condition: property
+      property: host.os
+      equals_value: Windows
+  - type: EnvironmentVariable
+    variableName: ENV_PIP
+    variableValue: "{{.AgentWorkingDir}}\\qt\\qtbridge-python\\env\\Scripts\\pip.exe"
+    enable_if:
+      condition: property
+      property: host.os
+      equals_value: Windows
+  - type: ExecuteCommand
+    command: "{{.Env.ENV_PIP}} install pyside6-essentials==6.10.0"
+    maxTimeInSeconds: 6000
+    maxTimeBetweenOutput: 1200
+    userMessageOnFailure: >
+      Failed to install pyside.
+  - type: ExecuteCommand
+    command: "{{.Env.ENV_PIP}} install repairwheel"
+    maxTimeInSeconds: 600
+    maxTimeBetweenOutput: 120
+    userMessageOnFailure: >
+      Failed to install repairwheel.
+  - type: ChangeDirectory
+    directory: "{{.AgentWorkingDir}}/qt/qtbridge-python/"
+    maxTimeInSeconds: 300
+    maxTimeBetweenOutput: 120
+    userMessageOnFailure: >
+      Failed to change to qtbridge dir
+  - type: ExecuteCommand
+    command: "c:\\users\\qt\\MSVC.bat {{.Env.ENV_PIP}} wheel . -Ccmake.define.QT_PATHS={{.AgentWorkingDir}}/install/bin/qtpaths"
+    maxTimeInSeconds: 6000
+    maxTimeBetweenOutput: 1200
+    enable_if:
+      condition: property
+      property: host.os
+      equals_value: Windows
+    userMessageOnFailure: >
+      Failed to build wheel.
+  - type: ExecuteCommand
+    command: "{{.Env.ENV_PIP}} wheel . -Ccmake.define.QT_PATHS={{.AgentWorkingDir}}/install/bin/qtpaths"
+    maxTimeInSeconds: 6000
+    maxTimeBetweenOutput: 1200
+    disable_if:
+      condition: property
+      property: host.os
+      equals_value: Windows
+    userMessageOnFailure: >
+      Failed to build wheel.
+  # Detect site-packages directory and write to file
+  - type: ExecuteCommand
+    command: ["{{.AgentWorkingDir}}/qt/qtbridge-python/env/bin/python", "-c", "import site; open('/tmp/site_packages_path.txt','w').write('SITE_PACKAGES=' + site.getsitepackages()[0])"]
+    maxTimeInSeconds: 120
+    maxTimeBetweenOutput: 60
+    disable_if:
+      condition: property
+      property: host.os
+      equals_value: Windows
+    userMessageOnFailure: >
+      Failed to detect site-packages directory.
+  - type: ExecuteCommand
+    command: ["{{.AgentWorkingDir}}\\qt\\qtbridge-python\\env\\Scripts\\python.exe", "-c", "import sysconfig; open('site_packages_path.txt','w').write('SITE_PACKAGES=' + sysconfig.get_path('purelib'))"]
+    maxTimeInSeconds: 120
+    maxTimeBetweenOutput: 60
+    enable_if:
+      condition: property
+      property: host.os
+      equals_value: Windows
+    userMessageOnFailure: >
+      Failed to detect site-packages directory.
+  # Parse SITE_PACKAGES from file
+  - type: ParseEnvironmentVariableFromFile
+    regex: "SITE_PACKAGES=(?P<SITE_PACKAGES>.*)"
+    filename: "/tmp/site_packages_path.txt"
+    maxTimeInSeconds: 60
+    maxTimeBetweenOutput: 30
+    disable_if:
+      condition: property
+      property: host.os
+      equals_value: Windows
+    userMessageOnFailure: "Failed to parse SITE_PACKAGES path"
+  - type: ParseEnvironmentVariableFromFile
+    regex: "SITE_PACKAGES=(?P<SITE_PACKAGES>.*)"
+    filename: "site_packages_path.txt"
+    maxTimeInSeconds: 60
+    maxTimeBetweenOutput: 30
+    enable_if:
+      condition: property
+      property: host.os
+      equals_value: Windows
+    userMessageOnFailure: "Failed to parse SITE_PACKAGES path"
+  # Repair wheel using repairwheel with detected site-packages path
+  - type: ExecuteCommand
+    command: "{{.AgentWorkingDir}}/qt/qtbridge-python/env/bin/repairwheel -o repaired_wheels -l {{.Env.SITE_PACKAGES}}/PySide6 -l {{.Env.SITE_PACKAGES}}/shiboken6 -l {{.Env.SITE_PACKAGES}}/PySide6/Qt/lib qtbridge-*-linux_*.whl"
+    maxTimeInSeconds: 600
+    maxTimeBetweenOutput: 120
+    enable_if:
+      condition: property
+      property: host.os
+      equals_value: Linux
+    userMessageOnFailure: >
+      Failed to repair wheel with repairwheel.
+  - type: ExecuteCommand
+    command: "{{.AgentWorkingDir}}/qt/qtbridge-python/env/bin/repairwheel -o repaired_wheels -l {{.Env.SITE_PACKAGES}}/PySide6 -l {{.Env.SITE_PACKAGES}}/shiboken6 -l {{.Env.SITE_PACKAGES}}/PySide6/Qt/lib qtbridge-*-macosx_*.whl"
+    maxTimeInSeconds: 600
+    maxTimeBetweenOutput: 120
+    enable_if:
+      condition: property
+      property: host.os
+      equals_value: MacOS
+    userMessageOnFailure: >
+      Failed to repair wheel with repairwheel.
+  - type: ExecuteCommand
+    command: "{{.AgentWorkingDir}}\\qt\\qtbridge-python\\env\\Scripts\\repairwheel.exe -o repaired_wheels -l {{.Env.SITE_PACKAGES}}\\PySide6 -l {{.Env.SITE_PACKAGES}}\\shiboken6 qtbridge-*-win*.whl"
+    maxTimeInSeconds: 600
+    maxTimeBetweenOutput: 120
+    enable_if:
+      condition: property
+      property: host.os
+      equals_value: Windows
+    userMessageOnFailure: >
+      Failed to repair wheel with repairwheel.
+  - type: UploadArtifact
+    archiveDirectory: "{{.AgentWorkingDir}}/qt/qtbridge-python/"
+    transferType: UploadModuleBuildArtifact
+    maxTimeInSeconds: 1200
+    maxTimeBetweenOutput: 1200

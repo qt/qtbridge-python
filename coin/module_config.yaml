@@ -1,0 +1,19 @@
+version: 2
+tags: [git]
+accept_configuration:
+  condition: property
+  property: features
+  not_contains_value: Disable
+
+instructions:
+  Build:
+    - type: Group
+      instructions:
+        - !include "{{qt/qtbridge-python}}/common_env.yaml"
+        - !include "{{qt/qtbridge-python}}/build_python.yaml"
+      enable_if:
+        condition: property
+        property: features
+        contains_value: RunAsPlatformDependency
+#  Test:
+#    - !include "{{qt/qtbase}}/run_license_check.yaml"
