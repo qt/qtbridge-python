@@ -36,7 +36,7 @@ void logPythonException(const char *context, PyObject *exc)
         Py_XDECREF(str);
         if (isUserError) {
             msg += ": " + errorMsg;
-            qCWarning(lcQtBridge, msg.c_str());
+            qCWarning(lcQtBridge, "%s", msg.c_str());
         } else {
             // For runtime/system errors, show more detail
             PyObject *excType = PyObject_Type(exc);
@@ -50,7 +50,7 @@ void logPythonException(const char *context, PyObject *exc)
                 Py_XDECREF(excType);
             }
             msg += ": " + typeName + ": " + errorMsg;
-            qCCritical(lcQtBridge, msg.c_str());
+            qCCritical(lcQtBridge, "%s", msg.c_str());
         }
 #endif
     }
