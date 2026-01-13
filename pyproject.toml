@@ -5,7 +5,7 @@ build-backend = "scikit_build_core.build"
 [project]
 name = "QtBridge"
 version = "0.0.1"
-requires-python = ">=3.9, <=3.14"
+requires-python = ">=3.9, <=3.15"
 description = "Python package providing the backend API to interact with QML frontend"
 authors = [
     { name = "Qt for Python Team", email = "pyside@qt-project.org" },
