@@ -32,14 +32,10 @@ When building you will need:
 
 * CMake: Minimum version 3.18
 * Qt: Minimum version 6.x (with `qtpaths` available in your PATH)
+* PySide6 and Shiboken6: Install version `6.10` before building with `pip install PySide6==6.10`
 * Build system: `scikit-build-core` is used for building and packaging the project
 * Documentation `QDoc` (Qt's built-in tool for generating API reference documentation)
 * Testing: `pytest` framework with `pytest-qt` plugin
-
-Dependencies: Qt Bridges automatically installs the required runtime dependencies for Python:
-
-* PySide6
-* Shiboken6
 
 ## Build & Install
 
