@@ -16,6 +16,8 @@
 #include <QtCore/qstring.h>
 #include <QtQml/qjsvalue.h>
 
+using namespace Qt::StringLiterals;
+
 namespace QtBridges {
 
 std::optional<QString> pyObject2StringOpt(PyObject *obj)
@@ -205,7 +207,7 @@ QVariant convertQVariantQJSValueToQtType(const QVariant &variantWithJSValue)
         if (jsValue.isArray()) {
             // For arrays, manually extract elements to ensure proper conversion
             QVariantList list;
-            quint32 length = jsValue.property("length").toUInt();
+            quint32 length = jsValue.property(u"length"_s).toUInt();
 
             qCDebug(lcQtBridge, "QJSValue array length: %u", length);
 

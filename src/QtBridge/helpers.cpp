@@ -19,7 +19,7 @@
 
 namespace QtBridges {
 
-static bool isQmlRegisteredType(PyObject *returnTypeAnnotation, const QString &elementTypeName)
+static bool isQmlRegisteredType(PyObject *returnTypeAnnotation, const QByteArray &elementTypeName)
 {
     if (!returnTypeAnnotation)
         return false;
@@ -60,9 +60,14 @@ static bool isQmlRegisteredType(PyObject *returnTypeAnnotation, const QString &e
     const QMetaObject *metaObject = getDynamicMetaObjectForType(elementType);
 
     qCDebug(lcQtBridge, "Checking if type '%s' is QML registered: %s",
-            elementTypeName.toUtf8().constData(), metaObject ? "YES" : "NO");
+            elementTypeName.constData(), metaObject ? "YES" : "NO");
 
     return metaObject != nullptr;
+}
+
+static bool isListTypeHint(const QByteArray &t)
+{
+    return t.contains("list[") || t.startsWith("typing.List") || t.startsWith("List[");
 }
 
 static QByteArray determinePropertyType(PyObject *propertyDescriptor)
@@ -90,23 +95,22 @@ static QByteArray determinePropertyType(PyObject *propertyDescriptor)
     if (!typeStr.object())
         return "QVariant";
 
-    QString typeString = Shiboken::String::toCString(typeStr.object());
-    qCDebug(lcQtBridge, "determinePropertyType: typeString from str(): %s", qPrintable(typeString));
+    QByteArray typeString = Shiboken::String::toCString(typeStr.object());
+    qCDebug(lcQtBridge, "determinePropertyType: typeString from str(): %s",
+            typeString.constData());
 
     // Use specific types only for collections to enable proper QML array/object handling
-    if (typeString.contains("list[") ||
-        typeString.startsWith("typing.List") ||
-        typeString.startsWith("List[")) {
+    if (isListTypeHint(typeString)) {
         // Check if the element type is a registered QML type
         if (isQmlRegisteredType(returnType, typeString)) {
             qCDebug(lcQtBridge, "Detected QML object list property, type: %s",
-                    qPrintable(typeString));
+                    typeString.constData());
             return "QQmlListProperty<QObject>";
         }
 
         // Fall back to QVariantList for primitive types or unregistered types
         qCDebug(lcQtBridge, "Detected primitive list property, type: %s",
-                qPrintable(typeString));
+                typeString.constData());
         return "QVariantList";
     }
     if (typeString.contains("dict[") ||
@@ -363,14 +367,12 @@ DataType inferDataType(PyObject *instance)
     if (returnType.object()) {
         Shiboken::AutoDecRef typeStr(PyObject_Str(returnType.object()));
         if (typeStr.object()) {
-            QString typeString = Shiboken::String::toCString(typeStr.object());
+            QByteArray typeString = Shiboken::String::toCString(typeStr.object());
             qCDebug(lcQtBridge, "inferDataType: Found return type hint: %s",
-                    qPrintable(typeString));
+                    typeString.constData());
 
             // Check for List[DataClass] pattern
-            if ((typeString.contains("list[") ||
-                    typeString.startsWith("typing.List") ||
-                    typeString.startsWith("List[")) &&
+            if (isListTypeHint(typeString) &&
                 !typeString.contains("str") &&
                 !typeString.contains("int") &&
                 !typeString.contains("float")) {
@@ -392,10 +394,7 @@ DataType inferDataType(PyObject *instance)
             }
 
             // Check for list of primitive types or plain List
-            if (typeString.contains("list[") ||
-                typeString.startsWith("typing.List") ||
-                typeString.startsWith("List[") ||
-                typeString == "list") {
+            if (isListTypeHint(typeString) || typeString == "list") {
                 qCDebug(lcQtBridge, "inferDataType: Type hint suggests List");
                 return DataType::List;
             }
