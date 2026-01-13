@@ -18,7 +18,7 @@ PyObject* InsertDecoratorPrivate::tp_call(PyObject* self, PyObject* args, PyObje
         return nullptr;
     }
 
-    auto model = getModelForDecorator(this);
+    auto *model = getModelForDecorator(this);
     if (!model) {
         PyErr_SetString(PyExc_RuntimeError,
                         "@insert - Model not found for the bound backend instance. "

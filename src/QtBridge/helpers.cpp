@@ -54,7 +54,7 @@ static bool isQmlRegisteredType(PyObject *returnTypeAnnotation, const QByteArray
     if (!PyType_Check(elementTypeObj))
         return false;
 
-    PyTypeObject *elementType = reinterpret_cast<PyTypeObject*>(elementTypeObj);
+    auto *elementType = reinterpret_cast<PyTypeObject*>(elementTypeObj);
 
     // Check if this type has been registered with QML by looking for stored meta-object
     const QMetaObject *metaObject = getDynamicMetaObjectForType(elementType);

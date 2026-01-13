@@ -22,7 +22,7 @@ static void destroyMetaObjectCapsule(PyObject* capsule)
 // PyCapsule destructor for AutoQmlBridgePrivate
 static void destroyBridgePrivateCapsule(PyObject* capsule)
 {
-    AutoQmlBridgePrivate* bridge = static_cast<AutoQmlBridgePrivate*>(
+    auto *bridge = static_cast<AutoQmlBridgePrivate*>(
         PyCapsule_GetPointer(capsule, BRIDGE_PRIVATE_CAPSULE_ATTR));
     if (bridge) {
         qCDebug(lcQtBridge, "Destroying AutoQmlBridgePrivate via PyCapsule destructor");
@@ -44,7 +44,7 @@ const QMetaObject* getDynamicMetaObjectForType(PyTypeObject* pythonType)
     }
 
     // Extract QMetaObject* from the capsule
-    const QMetaObject* metaObject = static_cast<const QMetaObject*>(
+    const auto *metaObject = static_cast<const QMetaObject*>(
         PyCapsule_GetPointer(capsule, METAOBJECT_CAPSULE_ATTR));
 
     // Note: capsule is a borrowed reference from PyDict_GetItemString, no need to DECREF

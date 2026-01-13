@@ -193,7 +193,7 @@ QVariant convertQVariantQJSValueToQtType(const QVariant &variantWithJSValue)
 
     // Check if this QVariant actually contains a QJSValue
     if (variantWithJSValue.userType() == qMetaTypeId<QJSValue>()) {
-        QJSValue jsValue = variantWithJSValue.value<QJSValue>();
+        auto jsValue = variantWithJSValue.value<QJSValue>();
 
         qCDebug(lcQtBridge,
             "Converting QJSValue to Qt type - isArray: %s, isObject: %s, isString: %s, isNumber: %s",

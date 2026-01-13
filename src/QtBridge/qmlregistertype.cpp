@@ -32,7 +32,7 @@ void createBridgeTypeModel(void *memory, void *userdata)
     Q_ASSERT(userdata);
 
     // userdata contains the PyTypeObject* from registration
-    PyTypeObject *pythonType = static_cast<PyTypeObject*>(userdata);
+    auto *pythonType = static_cast<PyTypeObject*>(userdata);
 
     if (!pythonType) {
         qCWarning(lcQtBridge, "createBridgeTypeModel called with null Python type!");
@@ -43,7 +43,7 @@ void createBridgeTypeModel(void *memory, void *userdata)
             pythonType->tp_name, memory);
 
     try {
-        BridgePyTypeObjectModel *obj = new (memory) BridgePyTypeObjectModel(nullptr, pythonType);
+        auto *obj = new (memory) BridgePyTypeObjectModel(nullptr, pythonType);
 
         if (obj) {
             // The object was created in QML-managed memory, so it's automatically QML-owned
@@ -52,7 +52,7 @@ void createBridgeTypeModel(void *memory, void *userdata)
                 obj, pythonType->tp_name, memory);
 
             // Verify that we can cast to QQmlParserStatus
-            QQmlParserStatus *parserStatus = static_cast<QQmlParserStatus*>(obj);
+            auto *parserStatus = static_cast<QQmlParserStatus*>(obj);
             qCDebug(lcQtBridge, "createBridgeTypeModel: Cast to QQmlParserStatus: %p (offset: %td bytes)",
                     parserStatus, reinterpret_cast<char*>(parserStatus) - reinterpret_cast<char*>(obj));
         }

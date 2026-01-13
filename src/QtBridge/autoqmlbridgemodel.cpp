@@ -77,7 +77,7 @@ int AutoQmlBridgeModel::rowCount(const QModelIndex &parent) const
     // This is an error for bridge_type() registered types
     if (m_datatype == DataType::Unknown) {
         // bridge_type scenario
-        const BridgePyTypeObjectModel* typeModel = dynamic_cast<const BridgePyTypeObjectModel*>(this);
+        const auto *typeModel = dynamic_cast<const BridgePyTypeObjectModel*>(this);
         if (typeModel) {
             // Get the type name for a better error message
             Shiboken::AutoDecRef typeObj(PyObject_Type(m_backend));
@@ -144,7 +144,7 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
 
     // If DataType is Unknown, it means this type is being used as a model but doesn't have data()
     if (m_datatype == DataType::Unknown) {
-        const BridgePyTypeObjectModel* typeModel = dynamic_cast<const BridgePyTypeObjectModel*>(this);
+        const auto *typeModel = dynamic_cast<const BridgePyTypeObjectModel*>(this);
         if (typeModel) {
             // Error already logged in rowCount(), just return empty
             return {};
@@ -390,7 +390,7 @@ int AutoQmlBridgeModel::qt_metacall(QMetaObject::Call call, int id, void **args)
             return false;
         }
 
-        PySide::PyObjectWrapper wrapper = qvariant->value<PySide::PyObjectWrapper>();
+        auto wrapper = qvariant->value<PySide::PyObjectWrapper>();
         PyObject *pyObj = wrapper;  // Use implicit conversion operator
         if (!pyObj) {
             return false;
@@ -433,7 +433,7 @@ int AutoQmlBridgeModel::qt_metacall(QMetaObject::Call call, int id, void **args)
             // QML may pass QVariant containing QJSValue, convert to proper Qt type
             if (args && args[0]) {
                 // First, try interpreting as QVariant
-                QVariant *variantPtr = reinterpret_cast<QVariant*>(args[0]);
+                auto *variantPtr = reinterpret_cast<QVariant*>(args[0]);
                 qCDebug(lcQtBridge, "WriteProperty received QVariant - type: %s, userType: %d",
                         variantPtr->typeName() ? variantPtr->typeName() : "unknown",
                         variantPtr->userType());
@@ -442,11 +442,10 @@ int AutoQmlBridgeModel::qt_metacall(QMetaObject::Call call, int id, void **args)
                 // (from QML instantiated Python types)
                 // If it's a BridgePyTypeObjectModel, we need to extract m_backend
                 if (variantPtr->canConvert<QObject*>()) {
-                    QObject *qobj = variantPtr->value<QObject*>();
+                    auto *qobj = variantPtr->value<QObject*>();
                     if (qobj) {
                         // Direct cast: we know the type stored is BridgePyTypeObjectModel*
-                        BridgePyTypeObjectModel *model =
-                            static_cast<BridgePyTypeObjectModel*>(qobj);
+                        auto *model = static_cast<BridgePyTypeObjectModel*>(qobj);
                         if (model && model->m_backend) {
                             qCDebug(lcQtBridge,
                                     "WriteProperty: Converting BridgePyTypeObjectModel* to Python backend object");
@@ -520,7 +519,7 @@ int AutoQmlBridgeModel::qt_metacall(QMetaObject::Call call, int id, void **args)
 
             // Only treat as QVariant if it's NOT a list property
             if (!isListProperty) {
-                QVariant *propertyValue = reinterpret_cast<QVariant *>(args[0]);
+                auto *propertyValue = reinterpret_cast<QVariant *>(args[0]);
                 if (typeName == "QVariantList" || typeName == "QVariantMap") {
                     // For primitive lists/maps, return the QVariant directly to QML
                     *reinterpret_cast<QVariant *>(args[0]) = *propertyValue;
@@ -529,7 +528,7 @@ int AutoQmlBridgeModel::qt_metacall(QMetaObject::Call call, int id, void **args)
                 if (propertyValue->canConvert<PySide::PyObjectWrapper>()) {
                     // Check if this is a bridge_type() created object (in s_typeModelMap)
                     // These should be returned as QObject* for QML, not converted to Model
-                    PySide::PyObjectWrapper wrapper = propertyValue->value<PySide::PyObjectWrapper>();
+                    auto wrapper = propertyValue->value<PySide::PyObjectWrapper>();
                     PyObject *pyObj = wrapper;
                     if (pyObj) {
                         auto typeIt = s_typeModelMap.find(pyObj);
