@@ -20,7 +20,7 @@ PyObject *EditDecoratorPrivate::tp_call(PyObject *self, PyObject *args, PyObject
         return nullptr;
     }
 
-    auto model = getModelForDecorator(this);
+    auto *model = getModelForDecorator(this);
     if (!model) {
         PyErr_SetString(PyExc_RuntimeError,
                         "@edit - Model not found for the bound backend instance. "
@@ -72,7 +72,7 @@ int EditDecoratorPrivate::tp_init(PyObject *self, PyObject *args, PyObject *kwds
     }
 
     // Extract the function
-    PyObject *func;
+    PyObject *func{};
     PyArg_UnpackTuple(args, "edit", 1, 1, &func);
 
     // Check that both 'index' and 'value' are present using helper functions

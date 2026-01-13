@@ -16,7 +16,7 @@ std::string formatException(PyObject *exc)
 
     // Get basic exception info
     PyObject *excType = PyObject_Type(exc);
-    std::string typeName = "";
+    std::string typeName;
     if (excType) {
         PyObject *typeNameObj = PyObject_GetAttrString(excType, "__name__");
         if (typeNameObj && PyUnicode_Check(typeNameObj)) {
@@ -27,7 +27,7 @@ std::string formatException(PyObject *exc)
     }
 
     PyObject *str = PyObject_Str(exc);
-    std::string errorMsg = "";
+    std::string errorMsg;
     if (str && PyUnicode_Check(str)) {
         errorMsg = Shiboken::String::toCString(str);
     }

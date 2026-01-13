@@ -73,7 +73,7 @@ int RemoveDecoratorPrivate::tp_init(PyObject *self, PyObject *args, PyObject *kw
     }
 
     // Extract the function
-    PyObject *func;
+    PyObject *func{};
     PyArg_UnpackTuple(args, "remove", 1, 1, &func);
 
     // Check that an argument named 'index' is present using helper function

@@ -238,9 +238,6 @@ void AutoQmlBridgePrivate::registerMethodsFromType(PyTypeObject *type)
 {
     if (!type) return;
 
-    // For instance mode, use the backend instance; for type mode, use the type directly
-    PyObject *sourceObject = (m_mode == BridgeMode::Instance) ? m_backend : reinterpret_cast<PyObject*>(type);
-
     // Use PyObject_Dir to get all attributes including inherited ones, not just direct class dict
     Shiboken::AutoDecRef dirList(PyObject_Dir(reinterpret_cast<PyObject*>(type)));
     if (!dirList)
@@ -560,7 +557,7 @@ PyObject *AutoQmlBridgePrivate::bridge_type(PyObject *self, PyObject *args, PyOb
                 type->tp_name, qml_name, uri, versionMajor, versionMinor);
 
         // Create bridge handler for this type to generate the dynamic metaObject
-        AutoQmlBridgePrivate *bridge;
+        AutoQmlBridgePrivate *bridge{};
         if (defaultProperty && strlen(defaultProperty) > 0) {
             bridge = new AutoQmlBridgePrivate(type, QString::fromUtf8(defaultProperty));
             qCDebug(lcQtBridge, "Using default property: %s", defaultProperty);

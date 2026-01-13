@@ -14,10 +14,7 @@ class UpdateQMLDecoratorPrivate : public PySide::ClassDecorator::DecoratorPrivat
 public:
     ~UpdateQMLDecoratorPrivate() override;
 
-    virtual PyObject *tp_call(PyObject *self, PyObject *args, PyObject *kwds) override = 0;
-    virtual int tp_init(PyObject *self, PyObject *args, PyObject *kwds) override = 0;
-    virtual const char *name() const override = 0;
-    virtual PyObject *tp_getattro(PyObject *self, PyObject *name);
+    PyObject *tp_getattro(PyObject *self, PyObject *name);
 
     PyObject *getWrappedFunc() const { return m_wrapped_func; }
     PyObject *getBackendInstance() const { return m_backend_instance; }

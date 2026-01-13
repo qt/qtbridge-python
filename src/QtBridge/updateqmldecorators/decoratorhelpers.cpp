@@ -41,7 +41,7 @@ bool validateDecoratorState(UpdateQMLDecoratorPrivate* decorator, const char* de
 
 int initDecoratorCommon(PyObject* /*self*/, PyObject* args, const char* decorator_name)
 {
-    PyObject *func;
+    PyObject *func{};
     if (!PyArg_UnpackTuple(args, decorator_name, 1, 1, &func)) {
         return -1;
     }

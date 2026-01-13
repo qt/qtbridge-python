@@ -228,21 +228,20 @@ QVariant convertQVariantQJSValueToQtType(const QVariant &variantWithJSValue)
                 static_cast<long long>(list.size()));
             return QVariant(list);
         }
-        else if (jsValue.isObject() && !jsValue.isNull() && !jsValue.isUndefined()) {
+        if (jsValue.isObject() && !jsValue.isNull() && !jsValue.isUndefined()) {
             // For objects, convert to QVariantMap
             QVariant converted = jsValue.toVariant();
             qCDebug(lcQtBridge, "Converted QJSValue object to QVariant: %s",
                     converted.typeName() ? converted.typeName() : "unknown");
             return converted;
         }
-        else {
-            // For primitive values (string, number, bool), use toVariant()
-            QVariant converted = jsValue.toVariant();
-            qCDebug(lcQtBridge, "Converted QJSValue primitive to QVariant: %s = %s",
-                    converted.typeName() ? converted.typeName() : "unknown",
-                    converted.toString().toUtf8().constData());
-            return converted;
-        }
+
+        // For primitive values (string, number, bool), use toVariant()
+        QVariant converted = jsValue.toVariant();
+        qCDebug(lcQtBridge, "Converted QJSValue primitive to QVariant: %s = %s",
+                converted.typeName() ? converted.typeName() : "unknown",
+                converted.toString().toUtf8().constData());
+        return converted;
     }
 
     // If it's not a QJSValue, return as-is

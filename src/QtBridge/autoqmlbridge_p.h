@@ -15,7 +15,7 @@
 
 namespace QtBridges {
 
-enum class BridgeMode {
+enum class BridgeMode : std::uint8_t {
     Instance,  // For bridge_instance() - wrapping existing Python instances
     Type       // For bridge_type() - registering types for QML instantiation
 };

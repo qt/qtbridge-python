@@ -29,7 +29,7 @@ void logPythonException(const char *context, PyObject *exc)
 #else
         // In runtime with Warning logging level
         PyObject *str = PyObject_Str(exc);
-        std::string errorMsg = "";
+        std::string errorMsg;
         if (str && PyUnicode_Check(str)) {
             errorMsg = Shiboken::String::toCString(str);
         }
@@ -40,7 +40,7 @@ void logPythonException(const char *context, PyObject *exc)
         } else {
             // For runtime/system errors, show more detail
             PyObject *excType = PyObject_Type(exc);
-            std::string typeName = "";
+            std::string typeName;
             if (excType) {
                 PyObject *typeNameObj = PyObject_GetAttrString(excType, "__name__");
                 if (typeNameObj && PyUnicode_Check(typeNameObj)) {

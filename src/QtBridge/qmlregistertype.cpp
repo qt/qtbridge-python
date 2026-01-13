@@ -17,7 +17,7 @@
 
 namespace {
     // Add the custom parser factory function like PySide6 does
-    static QQmlCustomParser *defaultCustomParserFactory()
+    QQmlCustomParser *defaultCustomParserFactory()
     {
         return nullptr;
     }

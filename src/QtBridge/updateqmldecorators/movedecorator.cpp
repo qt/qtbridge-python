@@ -22,7 +22,7 @@ PyObject *MoveDecoratorPrivate::tp_call(PyObject *self, PyObject *args, PyObject
         return nullptr;
     }
 
-    auto model = getModelForDecorator(this);
+    auto *model = getModelForDecorator(this);
     if (!model) {
         PyErr_SetString(PyExc_RuntimeError,
                         "@move - Model not found for the bound backend instance. "
@@ -88,7 +88,7 @@ int MoveDecoratorPrivate::tp_init(PyObject *self, PyObject *args, PyObject *kwds
     }
 
     // Extract the function
-    PyObject *func;
+    PyObject *func{};
     PyArg_UnpackTuple(args, "move", 1, 1, &func);
 
     // Check that both 'from_index' and 'to_index' are present using helper functions

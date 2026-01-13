@@ -20,7 +20,7 @@ PyObject *ResetDecoratorPrivate::tp_call(PyObject *self, PyObject *args, PyObjec
         return nullptr;
     }
 
-    auto model = getModelForDecorator(this);
+    auto *model = getModelForDecorator(this);
     if (!model) {
         PyErr_SetString(PyExc_RuntimeError,
                         "@reset - Model not found for the bound backend instance. "
@@ -62,7 +62,7 @@ int ResetDecoratorPrivate::tp_init(PyObject *self, PyObject *args, PyObject *kwd
         return -1;
     }
 
-    PyObject *func;
+    PyObject *func{};
     PyArg_UnpackTuple(args, "reset", 1, 1, &func);
     Py_INCREF(func);
     this->m_wrapped_func = func;

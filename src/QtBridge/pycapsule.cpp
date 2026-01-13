@@ -97,7 +97,7 @@ AutoQmlBridgePrivate* getAutoQmlBridgePrivateForType(PyTypeObject* pythonType)
         return nullptr;
     }
 
-    AutoQmlBridgePrivate* bridge = static_cast<AutoQmlBridgePrivate*>(
+    auto *bridge = static_cast<AutoQmlBridgePrivate*>(
         PyCapsule_GetPointer(capsule, BRIDGE_PRIVATE_CAPSULE_ATTR));
 
     // Note: capsule is a borrowed reference from PyDict_GetItemString, no need to DECREF

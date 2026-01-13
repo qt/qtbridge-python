@@ -74,7 +74,7 @@ int InsertDecoratorPrivate::tp_init(PyObject *self, PyObject *args, PyObject *kw
         return -1;
     }
 
-    PyObject *func;
+    PyObject *func{};
     PyArg_UnpackTuple(args, "insert", 1, 1, &func);
     Py_INCREF(func);
     this->m_wrapped_func = func;

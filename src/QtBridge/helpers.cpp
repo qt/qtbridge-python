@@ -277,7 +277,7 @@ PySideProperty* registerSingleProperty(const QByteArray &propertyName,
         return nullptr;
 
     // Add property to meta-object builder
-    PyObject *pysidePropObj = reinterpret_cast<PyObject *>(property);
+    auto *pysidePropObj = reinterpret_cast<PyObject *>(property);
     int propertyIndex = metaObjectBuilder->addProperty(propertyName.constData(), pysidePropObj);
 
     // Add to model if it exists
@@ -291,9 +291,9 @@ PySideProperty* registerSingleProperty(const QByteArray &propertyName,
 }
 
 void associateExistingProperty(const QByteArray &propertyName,
-                             PyObject *classDescriptor,
-                             PyObject *bindToInstance,
-                             AutoQmlBridgeModel *model)
+                               PyObject *classDescriptor,
+                               [[maybe_unused]] PyObject *bindToInstance,
+                               AutoQmlBridgeModel *model)
 {
     if (!classDescriptor || !PyObject_TypeCheck(classDescriptor, &PyProperty_Type) || !model)
         return;
@@ -455,11 +455,11 @@ bool isDataClassInstance(PyObject *obj)
     if (dataclassFields) {
         Py_XDECREF(dataclassFields);
         return true;
-    } else {
-        // Clear the AttributeError that was set by PyObject_GetAttrString
-        PyErr_Clear();
-        return false;
     }
+
+    // Clear the AttributeError that was set by PyObject_GetAttrString
+    PyErr_Clear();
+    return false;
 }
 
 QStringList getDataClassFieldNames(PyObject *dataclassType)

@@ -180,22 +180,22 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
             if (!utf8)
                 return {};
             return QString::fromUtf8(utf8);
-        } else if (PyLong_Check(item)) {
+        }
+        if (PyLong_Check(item))
             return QVariant(static_cast<int>(PyLong_AsLong(item)));;
-        } else if (PyFloat_Check(item)) {
+        if (PyFloat_Check(item))
             return QVariant(PyFloat_AsDouble(item));
-        } else if (PyBool_Check(item)) {
+        if (PyBool_Check(item))
             return QVariant(item == Py_True);
-        } else if (item == Py_None) {
+        if (item == Py_None)
             return {};
-        } else {
-            // Fallback: convert to string using str()
-            Shiboken::AutoDecRef strObj(PyObject_Str(item));
-            if (!strObj.isNull() && PyUnicode_Check(strObj.object())) {
-                const char *utf8 = Shiboken::String::toCString(strObj.object());
-                if (utf8)
-                    return QString::fromUtf8(utf8);
-            }
+
+        // Fallback: convert to string using str()
+        Shiboken::AutoDecRef strObj(PyObject_Str(item));
+        if (!strObj.isNull() && PyUnicode_Check(strObj.object())) {
+            const char *utf8 = Shiboken::String::toCString(strObj.object());
+            if (utf8)
+                return QString::fromUtf8(utf8);
         }
         return {};
     }
@@ -347,7 +347,7 @@ QModelIndex AutoQmlBridgeModel::parent(const QModelIndex &child) const
 {
     Q_UNUSED(child);
     // For a flat model, always return an invalid QModelIndex
-    return QModelIndex();
+    return {};
 }
 
 QModelIndex AutoQmlBridgeModel::index(int row, int column, const QModelIndex &parent) const
@@ -356,13 +356,13 @@ QModelIndex AutoQmlBridgeModel::index(int row, int column, const QModelIndex &pa
     case DataType::List:
     case DataType::DataClassList:
         if (parent.isValid() || column != 0)
-            return QModelIndex();
+            return {};
         return createIndex(row, column);
     // case DataType::Table:
     //     // Future: handle DataFrame index creation
     //     break;
     default:
-        return QModelIndex();
+        return {};
     }
 }
 
