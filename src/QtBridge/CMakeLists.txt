@@ -1,3 +1,5 @@
+# Copyright (C) 2025 The Qt Company Ltd.
+# SPDX-License-Identifier: BSD-3-Clause
 
 # Headers that contain Q_OBJECT and need MOC processing
 # TODO: Basically we don't need MOC for this because we manipulate
