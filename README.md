@@ -1,4 +1,4 @@
-# Qt Bridge - Python
+# Qt Bridge - Python - Pre Release
 
 > Copyright (C) 2025 The Qt Company Ltd.
 > SPDX-License-Identifier: LicenseRef-Qt-Commercial OR LGPL-3.0-only
@@ -99,11 +99,19 @@ category](https://forum.qt.io/category/78/qt-bridges).
 
 ## Terms and Conditions
 
-This is a pre-release implementation of Qt Bridges for Python. By installing this package, you agree
-to the terms and conditions stated in https://www.qt.io/terms-conditions. These terms and conditions
-also apply to the Qt Framework, which is used as a major dependency in this package.
+If you, your employer, or the legal entity you act on behalf of hold commercial
+license(s) with a Qt Group entity, Qt Bridges constitutes Pre-Release Code
+under the Qt License/Frame Agreement governing those licenses, and that
+agreement's terms and conditions relating to Pre-Release Code apply to your use
+of Qt Bridges as found in this repo.
+This Qt Bridges repo may provide links or access to third-party libraries or
+code (collectively "Third-Party Software") to implement various functions. Use
+or distribution of Third-Party Software is discretionary and in all respects
+subject to applicable license terms of applicable third-party right holders.
 
-The QtBridge for Python is built using PySide6, which is licensed under LGPLv3 or Commercial
+### Additional Terms and Conditions
+
+The Qt Bridge for Python is built using PySide6, which is licensed under LGPLv3 or Commercial
 licenses, see https://www.qt.io/development/qt-framework/qt-licensing
 
 PySide6 provides optional support for NumPy. Applications built with QtBridge for Python and using
