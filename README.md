@@ -20,7 +20,7 @@ handles property binding, signal connections, and model registration.
 * Less boilerplate: No manual `@Slot`, `@Property`, or signal management required
 * Automatic discovery: Public methods become callable from QML automatically
 * Model integration: Python classes become QML-ready models with simple decorators
-* Cross-language: Consistent API design across Python, Rust, C++, and more
+* Cross-language: Reuse the same QML files across multiple languages supported by Qt Bridges.
 
 ## Prerequisites
 
@@ -31,7 +31,7 @@ file.
 When building you will need:
 
 * CMake: Minimum version 3.18
-* Qt: Minimum version 6.x (with `qtpaths` available in your PATH)
+* Qt: Minimum version 6.10
 * PySide6 and Shiboken6: Install version `6.10` before building with `pip install PySide6==6.10`
 * Build system: `scikit-build-core` is used for building and packaging the project
 * Documentation `QDoc` (Qt's built-in tool for generating API reference documentation)
@@ -59,7 +59,7 @@ Future versions of this bridge will be available on PyPI, and you will be
 able to install it using:
 
 ```
-pip install qtbridges
+pip install qtbridge
 ```
 
 ### For developers
@@ -74,6 +74,19 @@ pip install -e ".[dev]"
 pytest .
 ```
 
+## Examples
+
+Explore the following examples to get started with QtBridge for Python. Each example demonstrates
+different features and capabilities. Check out the README.md in each example folder for detailed
+information:
+
+* [simple_app](examples/simple_app/) - A simple application to get you started with QtBridge
+* [minimal_app](examples/minimal_app/) - Expands on simple_app application demonstrating CRUD
+operations on a list
+* [counter](examples/counter/) - Simple counter example with basic state management
+* [quiz_example](examples/quiz_example/) - Interactive quiz application
+* [colorpaletteclient](examples/colorpaletteclient/) - Advanced example with REST API integration
+and color palette management
 
 ## Stay in touch
 
@@ -86,8 +99,8 @@ This is a pre-release implementation of Qt Bridges for Python. By installing thi
 to the terms and conditions stated in https://www.qt.io/terms-conditions. These terms and conditions
 also apply to the Qt Framework, which is used as a major dependency in this package.
 
-The Qt Bridge for Python is built using PySide6, which is licensed under LGPLv3 or Commercial
+The QtBridge for Python is built using PySide6, which is licensed under LGPLv3 or Commercial
 licenses, see https://www.qt.io/development/qt-framework/qt-licensing
 
-PySide6 provides optional support for NumPy. Applications built with Qt Bridge for Python and using
+PySide6 provides optional support for NumPy. Applications built with QtBridge for Python and using
 NumPy will include NumPy licensed under the modified BSD license
