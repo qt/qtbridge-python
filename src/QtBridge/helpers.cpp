@@ -372,10 +372,19 @@ DataType inferDataType(PyObject *instance)
                     typeString.constData());
 
             // Check for List[DataClass] pattern
-            if (isListTypeHint(typeString) &&
-                !typeString.contains("str") &&
-                !typeString.contains("int") &&
-                !typeString.contains("float")) {
+            bool isPrimitiveList = typeString.contains("List[str") ||
+                                   typeString.contains("List[int") ||
+                                   typeString.contains("List[float") ||
+                                   typeString.contains("List[bool") ||
+                                   typeString.contains("list[str") ||
+                                   typeString.contains("list[int") ||
+                                   typeString.contains("list[float") ||
+                                   typeString.contains("list[bool");
+
+            if ((typeString.contains("list[") ||
+                 typeString.startsWith("typing.List") ||
+                 typeString.startsWith("List[")) &&
+                !isPrimitiveList) {
                 qCDebug(lcQtBridge,
                         "inferDataType: Type hint suggests DataClassList");
 
