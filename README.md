@@ -30,6 +30,10 @@ file.
 
 When building you will need:
 
+* One of the supported platforms:
+    * Windows 11 (`x64`)
+    * Linux (`x86_64`, `aarch64`)
+    * macOS (`arm64`)
 * CMake: Minimum version 3.18
 * Qt: Minimum version 6.10
 * PySide6 and Shiboken6: Install version `6.10` before building with `pip install PySide6==6.10`
@@ -77,7 +81,7 @@ pytest .
 ## Examples
 
 Explore the following examples to get started with QtBridge for Python. Each example demonstrates
-different features and capabilities. Check out the README.md in each example folder for detailed
+different features and capabilities. Check out the `README.md` in each example folder for detailed
 information:
 
 * [simple_app](examples/simple_app/) - A simple application to get you started with QtBridge
