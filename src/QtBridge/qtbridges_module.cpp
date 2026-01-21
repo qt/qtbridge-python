@@ -3,6 +3,7 @@
 
 #include "autoqmlbridge_p.h"
 #include "updateqmldecorators/updateqmldecorator_p.h"
+#include "signal_p.h"
 
 static void cleanupModule()
 {
@@ -21,6 +22,7 @@ static PyModuleDef_Slot QtBridgesSlots[] = {
     {Py_mod_exec, reinterpret_cast<void*>(&initEditDecorator)},
     {Py_mod_exec, reinterpret_cast<void*>(&initResetDecorator)},
     {Py_mod_exec, reinterpret_cast<void*>(&initCompleteDecorator)},
+    {Py_mod_exec, reinterpret_cast<void*>(&QtBridges::Signal::init)},
     {0, nullptr}  // Sentinel
 };
 

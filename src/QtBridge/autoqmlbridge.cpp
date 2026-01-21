@@ -9,6 +9,7 @@
 #include "updateqmldecorators/updateqmldecorator_p.h"
 #include "qmlregistertype_p.h"
 #include "helpers_p.h"
+#include "signal_p.h"
 
 #include <sbkpython.h>
 #include <autodecref.h>
@@ -212,8 +213,8 @@ void AutoQmlBridgePrivate::setupMetaObjectBuilder()
 
     // Register methods, properties, and signals
     registerProperties();
+    registerSignals();
     registerMethods();
-    // registerSignals();
 
     // For Type mode, we don't create a model here since BridgePyTypeObjectModel handles that
     qCDebug(lcQtBridge) << "setupMetaObjectBuilder: Completed for class:" << className;
@@ -387,9 +388,53 @@ void AutoQmlBridgePrivate::registerPropertiesFromType(PyTypeObject *type)
 
 void AutoQmlBridgePrivate::registerSignalsFromType(PyTypeObject *type)
 {
-    // Use MetaObjectBuilder to register signals
-    // This can be extended later for custom signal registration from type introspection
-    Q_UNUSED(type);
+    if (!type) return;
+
+    // Use PyObject_Dir to get all attributes including inherited ones
+    Shiboken::AutoDecRef dirList(PyObject_Dir(reinterpret_cast<PyObject*>(type)));
+    if (!dirList)
+        return;
+
+    const Py_ssize_t count = PyList_Size(dirList.object());
+    for (Py_ssize_t i = 0; i < count; ++i) {
+        PyObject *nameObj = PyList_GetItem(dirList.object(), i);
+        if (!PyUnicode_Check(nameObj))
+            continue;
+
+        const char *attrName = Shiboken::String::toCString(nameObj);
+
+        // Ignore attributes that start with "_"
+        if (attrName[0] == '_')
+            continue;
+
+        Shiboken::AutoDecRef value(PyObject_GetAttrString(reinterpret_cast<PyObject*>(type), attrName));
+        if (!value)
+            continue;
+
+        // Check if this attribute is a Signal
+        if (QtBridges::Signal::isSignal(value.object())) {
+            // Build signal signature using the helper function
+            // This creates "signalName(type1,type2,...)" format
+            QByteArray signature = QtBridges::Signal::buildSignature(value.object());
+
+            if (signature.isEmpty()) {
+                // Fallback to no-arg signal
+                signature = QByteArray(attrName) + "()";
+            }
+
+            QByteArray signalName(attrName);
+
+            // Register the new signal
+            m_metaObjectBuilder->addSignal(signature);
+
+            qCDebug(lcQtBridge) << "Registered signal:" << signature;
+
+            PyObject *homonymousMethod = QtBridges::Signal::getHomonymousMethod(value.object());
+            if (homonymousMethod) {
+                qCDebug(lcQtBridge) << "Signal" << attrName << "has homonymous method";
+            }
+        }
+    }
 }
 
 AutoQmlBridgeModel* AutoQmlBridgePrivate::model() const

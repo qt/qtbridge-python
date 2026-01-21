@@ -21,6 +21,7 @@ set(qtbridge_HEADERS
     qmlregistertype_p.h
     helpers_p.h
     qmllistproperty_p.h
+    signal_p.h
 )
 
 
@@ -46,6 +47,7 @@ set(qtbridge_SOURCES
     qmlregistertype.cpp
     helpers.cpp
     qmllistproperty.cpp
+    signal.cpp
     ${qtbridge_MOC_SOURCES}  # Include generated MOC sources
 )
 

@@ -75,6 +75,11 @@ def __getattr__(name: str) -> Any:
         from .QtBridge import complete
         globals()["complete"] = complete
         return complete
+    if name == "Signal":
+        _setup_dependencies()
+        from .QtBridge import Signal
+        globals()["Signal"] = Signal
+        return Signal
     if name == "qtbridge":
         _setup_dependencies()
         from .qtbridge_py.qtbridge import qtbridge
@@ -87,4 +92,4 @@ def __getattr__(name: str) -> Any:
         return bridge_instance
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
-__all__ = ["bridge_instance", "insert", "remove", "move", "edit", "reset", "complete", "qtbridge", "cpython_bridge_instance"]
+__all__ = ["bridge_instance", "insert", "remove", "move", "edit", "reset", "complete", "Signal", "qtbridge", "cpython_bridge_instance"]
