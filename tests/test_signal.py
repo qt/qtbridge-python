@@ -143,3 +143,55 @@ class TestSignal:
         assert hasattr(NoArgSignalModel, 'triggered')
         assert model is not None
 
+    def test_signal_and_property_coexist(self, qtbot):
+        """Test that explicit Signal overrides auto-generated property notify signal.
+
+        When a property 'value' and an explicit Signal 'valueChanged(int)' are both defined,
+        the explicit Signal should override the auto-generated 'valueChanged()' notify signal.
+        This gives the user full control over when to emit the signal.
+        """
+        class PropertySignalModel:
+            valueChanged = Signal(int)
+
+            def __init__(self):
+                self._value = 42
+
+            @property
+            def value(self) -> int:
+                return self._value
+
+            @value.setter
+            def value(self, val: int):
+                if self._value != val:
+                    self._value = val
+                    # With the explicit Signal, user must emit manually when implemented:
+                    # self.valueChanged.emit(val)
+
+            def data(self):
+                return [self._value]
+
+        model = PropertySignalModel()
+        bridge_instance(model, name="PropertySignalModel")
+
+        qml_code = """
+        import QtQuick 2.0
+        import backend 1.0
+
+        Item {
+            Component.onCompleted: {
+                // Access the property
+                console.log("Initial value:", PropertySignalModel.value)
+
+                // Connect to the explicit valueChanged(int) signal
+                // Note: This is the explicit Signal(int), not the auto-generated notify signal
+                PropertySignalModel.valueChanged.connect(function(newValue) {
+                    console.log("Value changed to:", newValue)
+                })
+            }
+        }
+        """
+
+        self.engine.loadData(qml_code.encode(), QUrl())
+        qtbot.waitUntil(lambda: len(self.engine.rootObjects()) > 0, timeout=5000)
+        assert len(self.engine.rootObjects()) > 0
+

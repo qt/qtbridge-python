@@ -252,22 +252,52 @@ PySideProperty* registerSingleProperty(const QByteArray &propertyName,
     }
 
     QByteArray signalName = propertyName + "Changed";
-    int signalId = metaObjectBuilder->addSignal(signalName + "()");
+    QByteArray signalSignature;
+    int signalId = -1;
 
+    // Check if an explicit Signal with this name already exists
+    const QMetaObject *currentMeta = metaObjectBuilder->update();
+    bool foundExistingSignal = false;
+
+    if (currentMeta) {
+        for (int i = currentMeta->methodOffset(); i < currentMeta->methodCount(); ++i) {
+            QMetaMethod method = currentMeta->method(i);
+            if (method.methodType() == QMetaMethod::Signal) {
+                QByteArray methodName = method.name();
+                if (methodName == signalName) {
+                    // Found a signal with matching name
+                    signalSignature = method.methodSignature();
+                    foundExistingSignal = true;
+                    qCDebug(lcQtBridge,
+                            "Found existing explicit Signal %s for property %s, using it as notify signal",
+                            signalSignature.constData(), propertyName.constData());
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!foundExistingSignal) {
+        // No explicit Signal exists, create auto-generated notify signal
+        signalId = metaObjectBuilder->addSignal(signalName + "()");
+
+        if (signalId >= 0) {
+            signalSignature = signalName + "()";
+
+            qCDebug(lcQtBridge, "Added notify signal %s for property %s",
+                    signalName.constData(), propertyName.constData());
+        } else {
+            qCWarning(lcQtBridge, "Failed to add notify signal %s for property %s",
+                       signalName.constData(), propertyName.constData());
+        }
+    }
+
+    // Create PySideProperty using the signal signature (either explicit or auto-generated)
     PySideProperty *property = nullptr;
-    if (signalId >= 0) {
-        // Construct signal signature directly instead of calling update()
-        QByteArray signalSignature = signalName + "()";
-
-        // Create PySideProperty using the optimized signature-based version
+    if (!signalSignature.isEmpty()) {
         property = createPySidePropertyFromDescriptor(
             classDescriptor, bindToInstance, signalSignature.constData());
-
-        qCDebug(lcQtBridge, "Added notify signal %s for property %s",
-                signalName.constData(), propertyName.constData());
     } else {
-        qCWarning(lcQtBridge, "Failed to add notify signal %s for property %s",
-                   signalName.constData(), propertyName.constData());
         // Fallback if signal creation failed
         property = createPySidePropertyFromDescriptor(
             classDescriptor, bindToInstance, static_cast<const char*>(nullptr));

@@ -957,6 +957,17 @@ void AutoQmlBridgeModel::emitPropertyChanged(int propertyIndex)
     }
 
     QMetaMethod notifySignal = property.notifySignal();
+
+    // If the notify signal has parameters, it's an explicit Signal that the user defined.
+    // In this case, the user's Python property setter should handle calling emit() manually
+    if (notifySignal.parameterCount() > 0) {
+        qCDebug(lcQtBridge) << "emitPropertyChanged: Skipping auto-emission for property"
+                           << property.name() << "- explicit Signal" << notifySignal.name()
+                           << "with" << notifySignal.parameterCount() << "parameters."
+                           << "User should emit from Python setter.";
+        return;
+    }
+
     int methodIndex = notifySignal.methodIndex();
     int signalIndex = methodIndex - metaObj->methodOffset();
 

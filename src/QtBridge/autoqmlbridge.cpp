@@ -211,9 +211,10 @@ void AutoQmlBridgePrivate::setupMetaObjectBuilder()
         qCDebug(lcQtBridge) << "setupMetaObjectBuilder: Model created successfully (early)";
     }
 
-    // Register methods, properties, and signals
-    registerProperties();
+    // Register signals first so we can detect explicit Signals before creating
+    // auto-generated notify signals for properties.
     registerSignals();
+    registerProperties();
     registerMethods();
 
     // For Type mode, we don't create a model here since BridgePyTypeObjectModel handles that
@@ -390,7 +391,6 @@ void AutoQmlBridgePrivate::registerSignalsFromType(PyTypeObject *type)
 {
     if (!type) return;
 
-    // Use PyObject_Dir to get all attributes including inherited ones
     Shiboken::AutoDecRef dirList(PyObject_Dir(reinterpret_cast<PyObject*>(type)));
     if (!dirList)
         return;
@@ -422,9 +422,7 @@ void AutoQmlBridgePrivate::registerSignalsFromType(PyTypeObject *type)
                 signature = QByteArray(attrName) + "()";
             }
 
-            QByteArray signalName(attrName);
-
-            // Register the new signal
+            // Register the signal
             m_metaObjectBuilder->addSignal(signature);
 
             qCDebug(lcQtBridge) << "Registered signal:" << signature;
