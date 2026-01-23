@@ -16,11 +16,19 @@ extern "C"
         PyObject *homonymousMethod;   // Optional method with the same name
     };
 
-    // TODO: To be implemented later for bound signal instances with emit(), connect(), disconnect()
-    struct QtBridgeSignalInstance;
+    // Bound signal instance with emit(), connect(), disconnect() methods
+    // Created when accessing a Signal descriptor on an instance
+    struct QtBridgeSignalInstance {
+        PyObject_HEAD
+        PyObject *source;             // The Python instance that owns this signal (borrowed ref)
+        QByteArray *signature;        // Pre-computed signature: "signalName(type1,type2,...)"
+    };
 
     // Get the Signal type (lazy initialization)
     PyTypeObject *QtBridgeSignal_TypeF();
+
+    // Get the SignalInstance type (lazy initialization)
+    PyTypeObject *QtBridgeSignalInstance_TypeF();
 
 }; // extern "C"
 

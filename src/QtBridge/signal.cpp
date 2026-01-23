@@ -4,16 +4,22 @@
 #include "signal_p.h"
 #include "qtbridgelogging_p.h"
 #include "errorhandler.h"
+#include "autoqmlbridge_p.h"
+#include "autoqmlbridgemodel_p.h"
 
 #include <shiboken.h>
+#include <qobjectconnect.h>
+#include <signalmanager.h>
 
 #include <QtCore/qbytearray.h>
 #include <cstring>
 
-// Forward declaration
+// Forward declarations
 namespace QtBridges::Signal {
     QByteArray pythonTypeToQtTypeName(PyObject *type);
     bool isSignal(PyObject *obj);
+    QObject *getSignalSource(QtBridgeSignalInstance *signalInstance);
+    PyObject *createSignalInstance(QtBridgeSignal *signal, PyObject *source);
 }
 
 extern "C"
@@ -90,10 +96,8 @@ static PyObject* Signal_get(QtBridgeSignal *self, PyObject *obj, PyObject *type)
         return boundMethod;
     }
 
-    // For now, just return the signal itself
-    // TODO: return a SignalInstance that supports connect/disconnect
-    Py_INCREF(self);
-    return reinterpret_cast<PyObject*>(self);
+    // Return a SignalInstance that supports connect/disconnect/emit
+    return QtBridges::Signal::createSignalInstance(self, obj);
 }
 
 // Signal __set_name__ method (called when the signal is assigned to a class attribute)
@@ -182,6 +186,175 @@ PyTypeObject *QtBridgeSignal_TypeF()
     return type;
 }
 
+// ============================================================================
+// SignalInstance implementation
+// ============================================================================
+
+static void SignalInstance_dealloc(QtBridgeSignalInstance *self)
+{
+    delete self->signature;
+    PyObject_Free(self);
+}
+
+static PyObject *SignalInstance_repr(QtBridgeSignalInstance *self)
+{
+    const char *sig = self->signature ? self->signature->constData() : "<unnamed>";
+    return PyUnicode_FromFormat("<QtBridge.SignalInstance '%s' at %p>", sig, self);
+}
+
+static PyObject *SignalInstance_connect(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    static const char *kwlist[] = {"slot", "type", nullptr};
+    PyObject *slot = nullptr;
+    int connectionType = static_cast<int>(Qt::AutoConnection);
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|i", const_cast<char **>(kwlist),
+                                     &slot, &connectionType)) {
+        return nullptr;
+    }
+
+    if (!PyCallable_Check(slot)) {
+        PyErr_SetString(PyExc_TypeError, "First argument must be a callable (slot)");
+        return nullptr;
+    }
+
+    auto *signalInstance = reinterpret_cast<QtBridgeSignalInstance *>(self);
+
+    // Get the QObject source
+    QObject *source = QtBridges::Signal::getSignalSource(signalInstance);
+    if (!source)
+        return nullptr;
+
+    // Use pre-computed signature with SIGNAL() prefix
+    QByteArray qSignalSignature = QByteArray("2") + *signalInstance->signature;  // '2' is SIGNAL prefix
+
+    qCDebug(lcQtBridge) << "SignalInstance.connect: signal=" << *signalInstance->signature
+                        << "source=" << source;
+
+    // Use PySide's qobjectConnectCallback to connect the Python callable
+    auto conn = PySide::qobjectConnectCallback(source, qSignalSignature.constData(),
+                                               slot, static_cast<Qt::ConnectionType>(connectionType));
+
+    if (!conn) {
+        qCWarning(lcQtBridge) << "SignalInstance.connect failed for signal:" << *signalInstance->signature;
+        PyErr_SetString(PyExc_RuntimeError, "Failed to connect signal");
+        return nullptr;
+    }
+
+    qCDebug(lcQtBridge) << "SignalInstance.connect succeeded";
+    Py_RETURN_TRUE;
+}
+
+static PyObject *SignalInstance_disconnect(PyObject *self, PyObject *args)
+{
+    PyObject *slot = Py_None;
+    if (!PyArg_ParseTuple(args, "|O", &slot)) {
+        return nullptr;
+    }
+
+    auto *signalInstance = reinterpret_cast<QtBridgeSignalInstance *>(self);
+
+    // Get the QObject source
+    QObject *source = QtBridges::Signal::getSignalSource(signalInstance);
+    if (!source)
+        return nullptr;
+
+    // Use pre-computed signature with SIGNAL() prefix
+    QByteArray qSignalSignature = QByteArray("2") + *signalInstance->signature;
+
+    qCDebug(lcQtBridge) << "SignalInstance.disconnect: signal=" << *signalInstance->signature
+                        << "source=" << source;
+
+    bool ok = false;
+    if (slot == Py_None) {
+        // Disconnect all slots from this signal
+        ok = source->disconnect(qSignalSignature.constData());
+    } else if (PyCallable_Check(slot)) {
+        // Disconnect a specific Python callable
+        ok = PySide::qobjectDisconnectCallback(source, qSignalSignature.constData(), slot);
+    } else {
+        PyErr_SetString(PyExc_TypeError, "Argument must be a callable or None");
+        return nullptr;
+    }
+
+    if (ok) {
+        qCDebug(lcQtBridge) << "SignalInstance.disconnect succeeded";
+        Py_RETURN_TRUE;
+    }
+
+    qCDebug(lcQtBridge) << "SignalInstance.disconnect: no connection found";
+    Py_RETURN_FALSE;
+}
+
+static PyObject *SignalInstance_emit(PyObject *self, PyObject *args)
+{
+    auto *signalInstance = reinterpret_cast<QtBridgeSignalInstance *>(self);
+
+    // Get the QObject source
+    QObject *source = QtBridges::Signal::getSignalSource(signalInstance);
+    if (!source)
+        return nullptr;
+
+    // Use pre-computed signature with SIGNAL() prefix
+    QByteArray qSignalSignature = QByteArray("2") + *signalInstance->signature;
+
+    qCDebug(lcQtBridge) << "SignalInstance.emit: signal=" << *signalInstance->signature
+                        << "source=" << source
+                        << "args count=" << PyTuple_Size(args);
+
+    // Use PySide's SignalManager to emit the signal
+    const bool ok = PySide::SignalManager::emitSignal(source, qSignalSignature.constData(), args);
+
+    if (PyErr_Occurred()) {
+        return nullptr;
+    }
+
+    if (ok) {
+        qCDebug(lcQtBridge) << "SignalInstance.emit succeeded";
+        Py_RETURN_TRUE;
+    }
+
+    qCWarning(lcQtBridge) << "SignalInstance.emit failed for signal:" << *signalInstance->signature;
+    Py_RETURN_FALSE;
+}
+
+static PyMethodDef SignalInstance_methods[] = {
+    {"connect", reinterpret_cast<PyCFunction>(SignalInstance_connect),
+                METH_VARARGS | METH_KEYWORDS, "Connect a slot to this signal"},
+    {"disconnect", SignalInstance_disconnect, METH_VARARGS,
+                   "Disconnect a slot from this signal"},
+    {"emit", SignalInstance_emit, METH_VARARGS, "Emit this signal with arguments"},
+    {nullptr, nullptr, 0, nullptr}
+};
+
+static PyTypeObject *createSignalInstanceType()
+{
+    PyType_Slot SignalInstanceType_slots[] = {
+        {Py_tp_call, reinterpret_cast<void *>(SignalInstance_emit)}, // Signal() -> Signal.emit()
+        {Py_tp_dealloc, reinterpret_cast<void *>(SignalInstance_dealloc)},
+        {Py_tp_repr, reinterpret_cast<void *>(SignalInstance_repr)},
+        {Py_tp_methods, reinterpret_cast<void *>(SignalInstance_methods)},
+        {Py_tp_new, reinterpret_cast<void *>(PyType_GenericNew)},
+        {0, nullptr}
+    };
+
+    PyType_Spec SignalInstanceType_spec = {
+        "QtBridge.SignalInstance",
+        sizeof(QtBridgeSignalInstance),
+        0,
+        Py_TPFLAGS_DEFAULT,
+        SignalInstanceType_slots,
+    };
+
+    return reinterpret_cast<PyTypeObject *>(PyType_FromSpec(&SignalInstanceType_spec));
+}
+
+PyTypeObject *QtBridgeSignalInstance_TypeF()
+{
+    static auto *type = createSignalInstanceType();
+    return type;
+}
+
 } // extern "C"
 
 // Helper functions in QtBridges::Signal namespace
@@ -254,7 +427,21 @@ void init(PyObject *module)
         return;
     }
 
-    qCDebug(lcQtBridge) << "QtBridge.Signal type initialized successfully";
+    // Also register the SignalInstance type
+    auto *signalInstanceType = QtBridgeSignalInstance_TypeF();
+    if (!signalInstanceType) {
+        qCWarning(lcQtBridge) << "Failed to create QtBridge.SignalInstance type";
+        return;
+    }
+
+    Py_INCREF(signalInstanceType);
+    if (PyModule_AddObject(module, "SignalInstance", reinterpret_cast<PyObject*>(signalInstanceType)) < 0) {
+        Py_DECREF(signalInstanceType);
+        qCWarning(lcQtBridge) << "Failed to add QtBridge.SignalInstance to module";
+        return;
+    }
+
+    qCDebug(lcQtBridge) << "QtBridge.Signal and SignalInstance types initialized successfully";
 }
 
 bool isSignal(PyObject *obj)
@@ -325,6 +512,61 @@ QByteArray buildSignature(PyObject *signalObj)
 
     signature.append(')');
     return signature;
+}
+
+QObject *getSignalSource(QtBridgeSignalInstance *signalInstance)
+{
+    if (!signalInstance->source) {
+        PyErr_SetString(PyExc_RuntimeError, "SignalInstance has no source object");
+        return nullptr;
+    }
+
+    // Look up the AutoQmlBridgePrivate from the global map
+    auto it = s_bridgeMap.find(signalInstance->source);
+    if (it == s_bridgeMap.end()) {
+        // Try the typeModelMap for type-based bridges
+        auto typeIt = s_typeModelMap.find(signalInstance->source);
+        if (typeIt != s_typeModelMap.end()) {
+            return typeIt->second;  // BridgePyTypeObjectModel is a QObject
+        }
+        PyErr_SetString(PyExc_RuntimeError,
+            "Source object is not registered with QtBridge. "
+            "Ensure the object is wrapped with bridge_instance() or instantiated via bridge_type().");
+        return nullptr;
+    }
+
+    AutoQmlBridgeModel *model = it->second->model();
+    if (!model) {
+        PyErr_SetString(PyExc_RuntimeError, "AutoQmlBridgeModel is not available");
+        return nullptr;
+    }
+
+    return model;
+}
+
+// Helper function to create a SignalInstance from a Signal and source object
+PyObject *createSignalInstance(QtBridgeSignal *signal, PyObject *source)
+{
+    PyTypeObject *type = QtBridgeSignalInstance_TypeF();
+    if (!type) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to get SignalInstance type");
+        return nullptr;
+    }
+
+    auto *instance = PyObject_New(QtBridgeSignalInstance, type);
+    if (!instance) {
+        return nullptr;
+    }
+
+    // Store borrowed reference to source
+    // the source will outlive the instance
+    instance->source = source;
+
+    // Pre-compute the signature using buildSignature from the Signal descriptor
+    instance->signature = new QByteArray(buildSignature(
+        reinterpret_cast<PyObject *>(signal)));
+
+    return reinterpret_cast<PyObject *>(instance);
 }
 
 } // namespace Signal

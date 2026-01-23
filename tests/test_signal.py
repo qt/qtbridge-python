@@ -9,19 +9,117 @@ from QtBridge import bridge_instance, Signal
 import pytest
 
 
-TEST_QML_SIGNAL = """
+TEST_QML_CONNECT_JS = """
 import QtQuick 2.0
 import backend 1.0
 
 Item {
+    property int jsReceivedCount: 0
+    property int jsLastValue: 0
+
     Component.onCompleted: {
-        // Test that the signal exists and can be connected
-        SignalTestModel.mySignal.connect(function(value) {
-            console.log("Signal received:", value)
+        // Test connecting to JavaScript function
+        SignalTestModel.valueChanged.connect(function(value) {
+            console.log("JS: Signal received:", value)
+            jsReceivedCount++
+            jsLastValue = value
         })
 
-        // Call a method to ensure basic functionality works
-        SignalTestModel.increment()
+        // Trigger signal emission
+        SignalTestModel.setValue(42)
+        SignalTestModel.setValue(100)
+    }
+}
+"""
+
+TEST_QML_DISCONNECT_JS = """
+import QtQuick 2.0
+import backend 1.0
+
+Item {
+    property int jsReceivedCount: 0
+    property var jsHandler
+
+    Component.onCompleted: {
+        jsHandler = function(value) {
+            console.log("JS: Signal received:", value)
+            jsReceivedCount++
+        }
+
+        // Connect
+        SignalTestModel.valueChanged.connect(jsHandler)
+        SignalTestModel.setValue(10)
+
+        // Disconnect
+        SignalTestModel.valueChanged.disconnect(jsHandler)
+        SignalTestModel.setValue(20)
+
+        console.log("JS: Final count:", jsReceivedCount)
+    }
+}
+"""
+
+TEST_QML_EMIT_TEST = """
+import QtQuick 2.0
+import backend 1.0
+
+Item {
+    property int jsReceivedCount: 0
+    property int jsLastValue: 0
+
+    Component.onCompleted: {
+        SignalTestModel.valueChanged.connect(function(value) {
+            console.log("JS: Emit test received:", value)
+            jsReceivedCount++
+            jsLastValue = value
+        })
+
+        // Test explicit emit
+        SignalTestModel.emitSignal(999)
+    }
+}
+"""
+
+TEST_QML_PROPERTY_SIGNAL = """
+import QtQuick 2.0
+import backend 1.0
+
+Item {
+    property int jsCallbackCount: 0
+    property int jsLastValue: 0
+
+    Component.onCompleted: {
+        // Connect to the valueChanged(int) signal
+        SignalTestModel.valueChanged.connect(function(newValue) {
+            console.log("JS: Value changed to:", newValue)
+            jsCallbackCount++
+            jsLastValue = newValue
+        })
+
+        // Change the value to trigger the signal
+        SignalTestModel.value = 100
+    }
+}
+"""
+
+TEST_QML_CONNECT_PYTHON_CALLABLE = """
+import QtQuick 2.0
+import backend 1.0
+
+Item {
+    property int emitCount: 0
+
+    Component.onCompleted: {
+        // Connect the signal to a Python method from QML
+        SignalTestModel.valueChanged.connect(SignalTestModel.python_slot)
+
+        // Emit signals to trigger the Python callable
+        SignalTestModel.setValue(42)
+        emitCount++
+        SignalTestModel.setValue(100)
+        emitCount++
+
+        console.log("QML: Emitted", emitCount, "signals")
     }
 }
 """
@@ -29,22 +127,50 @@ Item {
 
 class SignalTestModel:
     """Test model with a Signal"""
-    mySignal = Signal(int)
+    valueChanged = Signal(int)
 
     def __init__(self):
-        self._counter = 0
+        self._value = 0
+        self._python_callback_count = 0
+        self._python_last_value = None
 
     @property
-    def counter(self) -> int:
-        return self._counter
+    def value(self) -> int:
+        return self._value
 
-    def increment(self):
-        """Method to increment counter"""
-        self._counter += 1
+    @value.setter
+    def value(self, val: int):
+        """Property setter that emits signal"""
+        if self._value != val:
+            self._value = val
+            self.valueChanged.emit(val)
+
+    def setValue(self, value: int):
+        """Set value and emit signal"""
+        self._value = value
+        self.valueChanged.emit(value)
+
+    def emitSignal(self, value: int):
+        """Explicitly emit signal for testing"""
+        self.valueChanged.emit(value)
+
+    def setup_python_connections(self):
+        """Setup Python callbacks"""
+        self.valueChanged.connect(self.python_callback)
+
+    def python_callback(self, value: int):
+        """Python callback for signal"""
+        self._python_callback_count += 1
+        self._python_last_value = value
+
+    def python_slot(self, value: int):
+        """Python slot that can be connected from QML"""
+        self._python_callback_count += 1
+        self._python_last_value = value
 
     def data(self):
         """Required method for QtBridge"""
-        return [self._counter]
+        return [self._value]
 
 
 class TestSignal:
@@ -78,23 +204,6 @@ class TestSignal:
     def get_console_messages(self):
         """Get all captured console messages"""
         return [msg['message'] for msg in self.captured_messages]
-
-    def test_signal_registration(self, qtbot):
-        """Test that Signal is properly registered in the QMetaObject"""
-        model = SignalTestModel()
-        bridge_instance(model, name="SignalTestModel")
-        self.engine.loadData(TEST_QML_SIGNAL.encode(), QUrl())
-        qtbot.waitUntil(lambda: len(self.engine.rootObjects()) > 0, timeout=5000)
-        assert len(self.engine.rootObjects()) > 0, "QML failed to load"
-
-    def test_signal_basic_functionality(self, qtbot):
-        """Test basic Signal instantiation and attributes"""
-        sig = Signal(int)
-        assert sig is not None
-
-        class TestClass:
-            testSignal = Signal(str, int)
-        assert hasattr(TestClass, 'testSignal')
 
     def test_signal_with_multiple_types(self, qtbot):
         """Test Signal with multiple parameter types"""
@@ -150,48 +259,201 @@ class TestSignal:
         the explicit Signal should override the auto-generated 'valueChanged()' notify signal.
         This gives the user full control over when to emit the signal.
         """
-        class PropertySignalModel:
-            valueChanged = Signal(int)
+        self.setup_message_capture()
 
-            def __init__(self):
-                self._value = 42
+        model = SignalTestModel()
+        bridge_instance(model, name="SignalTestModel")
 
-            @property
-            def value(self) -> int:
-                return self._value
+        # Setup Python callback after bridge_instance
+        model.setup_python_connections()
 
-            @value.setter
-            def value(self, val: int):
-                if self._value != val:
-                    self._value = val
-                    # With the explicit Signal, user must emit manually when implemented:
-                    # self.valueChanged.emit(val)
-
-            def data(self):
-                return [self._value]
-
-        model = PropertySignalModel()
-        bridge_instance(model, name="PropertySignalModel")
-
-        qml_code = """
-        import QtQuick 2.0
-        import backend 1.0
-
-        Item {
-            Component.onCompleted: {
-                // Access the property
-                console.log("Initial value:", PropertySignalModel.value)
-
-                // Connect to the explicit valueChanged(int) signal
-                // Note: This is the explicit Signal(int), not the auto-generated notify signal
-                PropertySignalModel.valueChanged.connect(function(newValue) {
-                    console.log("Value changed to:", newValue)
-                })
-            }
-        }
-        """
-
-        self.engine.loadData(qml_code.encode(), QUrl())
+        self.engine.loadData(TEST_QML_PROPERTY_SIGNAL.encode(), QUrl())
         qtbot.waitUntil(lambda: len(self.engine.rootObjects()) > 0, timeout=5000)
-        assert len(self.engine.rootObjects()) > 0
 
+        root = self.engine.rootObjects()[0]
+        messages = self.get_console_messages()
+
+        # Verify QML callback was called
+        assert root.property("jsCallbackCount") == 1, f"Expected JS callback once, got {root.property('jsCallbackCount')}"
+        assert root.property("jsLastValue") == 100, f"Expected last value 100, got {root.property('jsLastValue')}"
+
+        # Verify Python callback was called
+        assert model._python_callback_count == 1, f"Expected Python callback once, got {model._python_callback_count}"
+
+        # Verify console output
+        assert any("JS: Value changed to: 100" in msg for msg in messages), "Signal with value 100 not received in JS"
+
+        # Verify that auto-emission was skipped for the explicit Signal
+        assert any("Skipping auto-emission for property" in msg and "value" in msg and "explicit Signal" in msg
+                   for msg in messages), "Expected debug message about skipping auto-emission for explicit Signal"
+
+    def test_signal_connect_to_qml_function(self, qtbot):
+        """Test connecting a signal to a QML/JavaScript function"""
+        self.setup_message_capture()
+
+        model = SignalTestModel()
+        bridge_instance(model, name="SignalTestModel")
+
+        self.engine.loadData(TEST_QML_CONNECT_JS.encode(), QUrl())
+        qtbot.waitUntil(lambda: len(self.engine.rootObjects()) > 0, timeout=5000)
+
+        root = self.engine.rootObjects()[0]
+        messages = self.get_console_messages()
+
+        # Should receive both emitted signals
+        assert root.property("jsReceivedCount") == 2, f"Expected 2 signals, got {root.property('jsReceivedCount')}"
+        assert root.property("jsLastValue") == 100, f"Expected last value 100, got {root.property('jsLastValue')}"
+
+        # Verify console output
+        assert any("JS: Signal received: 42" in msg for msg in messages), "Signal with value 42 not received"
+        assert any("JS: Signal received: 100" in msg for msg in messages), "Signal with value 100 not received"
+
+    def test_signal_disconnect_from_qml_function(self, qtbot):
+        """Test disconnecting a signal from a QML/JavaScript function"""
+        self.setup_message_capture()
+
+        model = SignalTestModel()
+        bridge_instance(model, name="SignalTestModel")
+
+        self.engine.loadData(TEST_QML_DISCONNECT_JS.encode(), QUrl())
+        qtbot.waitUntil(lambda: len(self.engine.rootObjects()) > 0, timeout=5000)
+
+        root = self.engine.rootObjects()[0]
+        messages = self.get_console_messages()
+
+        # Should receive only 1 signal (before disconnect)
+        assert root.property("jsReceivedCount") == 1, f"Expected 1 signal (before disconnect), got {root.property('jsReceivedCount')}"
+
+        # Verify only the first signal was received
+        assert any("JS: Signal received: 10" in msg for msg in messages), "Signal with value 10 not received"
+        assert not any("JS: Signal received: 20" in msg for msg in messages), "Signal with value 20 should NOT be received after disconnect"
+        assert any("JS: Final count: 1" in msg for msg in messages), "Final count should be 1"
+
+    def test_signal_emit_from_python(self, qtbot):
+        """Test explicitly emitting a signal from Python"""
+        self.setup_message_capture()
+
+        model = SignalTestModel()
+        bridge_instance(model, name="SignalTestModel")
+
+        self.engine.loadData(TEST_QML_EMIT_TEST.encode(), QUrl())
+        qtbot.waitUntil(lambda: len(self.engine.rootObjects()) > 0, timeout=5000)
+
+        root = self.engine.rootObjects()[0]
+        messages = self.get_console_messages()
+
+        # Should receive the emitted signal
+        assert root.property("jsReceivedCount") == 1, f"Expected 1 signal, got {root.property('jsReceivedCount')}"
+        assert root.property("jsLastValue") == 999, f"Expected value 999, got {root.property('jsLastValue')}"
+
+        # Verify console output
+        assert any("JS: Emit test received: 999" in msg for msg in messages), "Signal with value 999 not received"
+
+    def test_signal_connect_to_python_function(self, qtbot):
+        """Test connecting a signal to a Python function"""
+        model = SignalTestModel()
+        bridge_instance(model, name="SignalTestModel")
+
+        model.setup_python_connections()
+
+        # Emit signals
+        model.setValue(42)
+        model.setValue(100)
+
+        # Verify Python callback was called
+        assert model._python_callback_count == 2, f"Expected 2 callbacks, got {model._python_callback_count}"
+        assert model._python_last_value == 100, f"Expected last value 100, got {model._python_last_value}"
+
+    def test_signal_disconnect_from_python_function(self, qtbot):
+        """Test disconnecting a signal from a Python function"""
+        model = SignalTestModel()
+        bridge_instance(model, name="SignalTestModel")
+
+        model.setup_python_connections()
+
+        # Emit signal
+        model.setValue(10)
+        assert model._python_callback_count == 1, "First signal should be received"
+
+        # Disconnect
+        model.valueChanged.disconnect(model.python_callback)
+
+        # Emit signal should NOT be received
+        model.setValue(20)
+        assert model._python_callback_count == 1, "Callback count should still be 1 after disconnect"
+        assert model._python_last_value == 10, "Last value should still be 10 (from before disconnect)"
+
+    def test_signal_connect_multiple_callbacks(self, qtbot):
+        """Test connecting multiple Python callbacks to the same signal"""
+        model = SignalTestModel()
+        bridge_instance(model, name="SignalTestModel")
+
+        # Track calls
+        callback1_count = [0]
+        callback2_count = [0]
+
+        def callback1(value):
+            callback1_count[0] += 1
+
+        def callback2(value):
+            callback2_count[0] += 1
+
+        # Connect both callbacks
+        model.valueChanged.connect(callback1)
+        model.valueChanged.connect(callback2)
+
+        # Emit signal
+        model.setValue(42)
+
+        # Both callbacks should be called
+        assert callback1_count[0] == 1, "Callback1 should be called once"
+        assert callback2_count[0] == 1, "Callback2 should be called once"
+
+        # Disconnect one callback
+        model.valueChanged.disconnect(callback1)
+
+        # Emit again
+        model.setValue(100)
+
+        # Only callback2 should be called
+        assert callback1_count[0] == 1, "Callback1 should still be called once (disconnected)"
+        assert callback2_count[0] == 2, "Callback2 should be called twice"
+
+    def test_signal_lambda_connection(self, qtbot):
+        """Test connecting a signal to a lambda function"""
+        model = SignalTestModel()
+        bridge_instance(model, name="SignalTestModel")
+
+        # Track lambda calls
+        lambda_values = []
+
+        # Connect lambda
+        model.valueChanged.connect(lambda v: lambda_values.append(v))
+
+        # Emit signals
+        model.setValue(1)
+        model.setValue(2)
+        model.setValue(3)
+
+        # Verify lambda was called with correct values
+        assert lambda_values == [1, 2, 3], f"Expected [1, 2, 3], got {lambda_values}"
+
+    def test_signal_connect_to_python_callable_from_qml(self, qtbot):
+        """Test connecting a signal to a Python callable from QML"""
+        self.setup_message_capture()
+
+        model = SignalTestModel()
+        bridge_instance(model, name="SignalTestModel")
+
+        self.engine.loadData(TEST_QML_CONNECT_PYTHON_CALLABLE.encode(), QUrl())
+        qtbot.waitUntil(lambda: len(self.engine.rootObjects()) > 0, timeout=5000)
+
+        root = self.engine.rootObjects()[0]
+        messages = self.get_console_messages()
+
+        assert model._python_callback_count == 2, f"Expected 2 Python callbacks, got {model._python_callback_count}"
+        assert model._python_last_value == 100, f"Expected last value 100, got {model._python_last_value}"
+
+        assert root.property("emitCount") == 2, f"Expected 2 emits from QML, got {root.property('emitCount')}"
+
+        assert any("QML: Emitted 2 signals" in msg for msg in messages), "Expected console message about emitting signals"

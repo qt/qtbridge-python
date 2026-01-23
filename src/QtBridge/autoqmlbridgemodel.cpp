@@ -200,14 +200,24 @@ void handleReadProperty(AutoQmlBridgeModel *model, int id, void **args)
 }
 
 // Handle InvokeMetaMethod call in qt_metacall
-int handleInvokeMethod(AutoQmlBridgeModel *model, int id, void **args)
+int handleInvokeMethod(AutoQmlBridgeModel *model, int id, int base_id, void **args)
 {
-    // Get method info
-    const QMetaMethod method = model->metaObject()->method(id);
+    const QMetaObject *metaObj = model->metaObject();
+    const int absoluteIndex = base_id + metaObj->methodOffset();
+    const QMetaMethod method = metaObj->method(absoluteIndex);
     const QByteArray methodName = method.name();
     const int paramCount = method.parameterCount();
 
-    // Print method name
+    // Check if this is a signal
+    if (method.methodType() == QMetaMethod::Signal) {
+        const int localSignalIndex = absoluteIndex - metaObj->methodOffset();
+        qCDebug(lcQtBridge, "Emitting signal: %s (absolute index: %d, local index: %d)",
+                methodName.constData(), absoluteIndex, localSignalIndex);
+        // Emit the signal
+        QMetaObject::activate(model, metaObj, localSignalIndex, args);
+        return -1;
+    }
+
     qCDebug(lcQtBridge, "Trying to call Python method: %s", methodName.constData());
 
     // Fetch the Python method
@@ -659,9 +669,8 @@ int AutoQmlBridgeModel::qt_metacall(QMetaObject::Call call, int id, void **args)
         return -1;
     }
 
-    if (call == QMetaObject::InvokeMetaMethod) {
-        return handleInvokeMethod(this, id, args);
-    }
+    if (call == QMetaObject::InvokeMetaMethod)
+        return handleInvokeMethod(this, id, base_id, args);
     return id;
 }
 
