@@ -18,7 +18,8 @@ enum class DataType {
     Unknown,
     List,        // List of primitive types (int, str, etc.)
     DataClassList, // List of dataclass objects
-    Table
+    Table,
+    DictList        // List of dictionary, or list of nested dictionary
 };
 
 class AutoQmlBridgeModel : public QAbstractItemModel
@@ -53,9 +54,16 @@ public:
     // Get the Python backend instance
     PyObject *pythonInstance() const { return m_backend; }
 
+    // Extract the common list item in data
+    PyObject* getDataListItem(PyObject *backend, const QModelIndex &index, const char *errorContext) const;
+
     // DataClass support methods
     QStringList getDataClassFieldNames() const;
     void setupDataClassRoles();
+
+    // List of dictionary support methods
+    QStringList getDictKeys();
+    void setupDictRoles();
 
     // Emit property change signal by property index
     void emitPropertyChanged(int propertyIndex);
@@ -72,6 +80,10 @@ protected:
     // DataClass support
     QHash<int, QByteArray> m_dataClassRoles;  // Role ID -> Field name mapping
     QStringList m_dataClassFieldNames;        // Cached field names
+
+    // DictList support
+    QHash<int, QByteArray> m_dictRoles;
+    QStringList m_dictKeyNames;
 };
 
 /**

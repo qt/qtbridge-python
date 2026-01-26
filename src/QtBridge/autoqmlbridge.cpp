@@ -484,6 +484,7 @@ PyObject *AutoQmlBridgePrivate::bridge_instance(PyObject *self, PyObject *args, 
         case QtBridges::DataType::List: inferredTypeName = "List"; break;
         case QtBridges::DataType::DataClassList: inferredTypeName = "DataClassList"; break;
         case QtBridges::DataType::Table: inferredTypeName = "Table"; break;
+        case QtBridges::DataType::DictList: inferredTypeName = "DictList"; break;
         default: break;
     }
     qCDebug(lcQtBridge, "Inferred data_type: %s", inferredTypeName);

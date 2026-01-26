@@ -329,6 +329,9 @@ AutoQmlBridgeModel::AutoQmlBridgeModel(PyObject *backend, const QMetaObject *met
 
     if (m_datatype == DataType::DataClassList) {
         setupDataClassRoles();
+    } else if (m_datatype == DataType::DictList) {
+        // Check if it's a list of dict to setup keys
+        setupDictRoles();
     }
 }
 
@@ -387,7 +390,8 @@ int AutoQmlBridgeModel::rowCount(const QModelIndex &parent) const
 
     switch (m_datatype) {
     case DataType::List:
-    case DataType::DataClassList: {
+    case DataType::DataClassList:
+    case DataType::DictList: {
         Shiboken::AutoDecRef data(PyObject_CallMethod(m_backend, "data", nullptr));
 
         if (PyErr_Occurred()) {
@@ -422,6 +426,25 @@ int AutoQmlBridgeModel::columnCount(const QModelIndex &parent) const
     }
 }
 
+PyObject* AutoQmlBridgeModel::getDataListItem(PyObject *backend, const QModelIndex &index, const char *errorContext) const
+{
+    Shiboken::AutoDecRef data(PyObject_CallMethod(backend, "data", nullptr));
+
+    if (PyErr_Occurred()) {
+        logPythonException(errorContext);
+        return {};
+    }
+
+    if (!data || !PyList_Check(data.object()))
+        return {};
+
+    int row = index.row();
+    if (row < 0 || row >= PyList_Size(data.object()))
+        return {};
+
+    return PyList_GetItem(data.object(), row);
+}
+
 QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid() || !m_backend)
@@ -442,21 +465,10 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
             return {};
 
         Shiboken::GilState gil;
-        Shiboken::AutoDecRef data(PyObject_CallMethod(m_backend, "data", nullptr));
 
-        if (PyErr_Occurred()) {
-            logPythonException("AutoQmlBridgeModel::data: error calling backend.data() (List)");
-            return {};
-        }
+        PyObject *item = getDataListItem(m_backend, index,
+            "AutoQmlBridgeModel::data: error calling backend.data() (List)");
 
-        if (!data || !PyList_Check(data.object()))
-            return {};
-
-        int row = index.row();
-        if (row < 0 || row >= PyList_Size(data.object()))
-            return {};
-
-        PyObject *item = PyList_GetItem(data.object(), row);
         if (!item)
             return {};
 
@@ -466,22 +478,10 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
     }
     case DataType::DataClassList: {
         Shiboken::GilState gil;
-        Shiboken::AutoDecRef data(PyObject_CallMethod(m_backend, "data", nullptr));
 
-        if (PyErr_Occurred()) {
-            logPythonException(
-                "AutoQmlBridgeModel::data: error calling backend.data() (DataClassList)");
-            return {};
-        }
+        PyObject *dataclassItem = getDataListItem(m_backend, index,
+            "AutoQmlBridgeModel::data: error calling backend.data() (DataClassList)");
 
-        if (!data || !PyList_Check(data.object()))
-            return {};
-
-        int row = index.row();
-        if (row < 0 || row >= PyList_Size(data.object()))
-            return {};
-
-        PyObject *dataclassItem = PyList_GetItem(data.object(), row);
         if (!dataclassItem)
             return {};
 
@@ -512,6 +512,33 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
         auto variantOpt = pyObject2VariantOpt(fieldValue);
         Py_XDECREF(fieldValue);
         return variantOpt.value_or(QVariant());
+    }
+    case DataType::DictList: {
+        Shiboken::GilState gil;
+
+        PyObject *item = getDataListItem(m_backend, index,
+            "AutoQmlBridgeModel::data: error calling backend.data() (DictList)");
+
+        if (!item)
+            return {};
+
+        if (!PyDict_Check(item)) {
+            PyErr_SetString(PyExc_TypeError, "AutoQmlBridgeModel::data: Expected dictionary (DictList)");
+            return {};
+        }
+
+        // Get the role name for this role
+        QByteArray roleName = m_dictRoles.value(role);
+
+        if (!roleName.isEmpty()) {
+            // Look up the value in the dict
+            PyObject *value = PyDict_GetItemString(item, roleName.constData());
+            if (value) {
+                auto variantOpt = pyObject2VariantOpt(value);
+                return variantOpt.value_or(QVariant());
+            }
+        }
+        return {};
     }
     default:
         return {};
@@ -577,6 +604,12 @@ QHash<int, QByteArray> AutoQmlBridgeModel::roleNames() const
     // case DataType::Table:
     //     // Future: add roles for DataFrame columns
     //     break;
+    case DataType::DictList:
+        if (!m_dictRoles.isEmpty())
+            return m_dictRoles;
+        // Fallback to display role if roles not set up yet
+        roles[Qt::DisplayRole] = "display";
+        break;
     default:
         roles[Qt::DisplayRole] = "display";
         break;
@@ -596,6 +629,7 @@ QModelIndex AutoQmlBridgeModel::index(int row, int column, const QModelIndex &pa
     switch (m_datatype) {
     case DataType::List:
     case DataType::DataClassList:
+    case DataType::DictList:
         if (parent.isValid() || column != 0)
             return {};
         return createIndex(row, column);
@@ -851,6 +885,7 @@ void BridgePyTypeObjectModel::createPythonInstance()
                 case DataType::List: datatypeName = "List"; break;
                 case DataType::DataClassList: datatypeName = "DataClassList"; break;
                 case DataType::Table: datatypeName = "Table"; break;
+                case DataType::DictList: datatypeName = "DictList"; break;
                 default: break;
             }
             qCDebug(lcQtBridge, "Inferred data type for %s: %s",
@@ -1058,6 +1093,66 @@ void AutoQmlBridgeModel::setupDataClassRoles()
 
     qCDebug(lcQtBridge, "SetupDataClassRoles: Created %lld roles for dataclass fields",
         static_cast<long long>(m_dataClassRoles.size()));
+}
+
+QStringList AutoQmlBridgeModel::getDictKeys()
+{
+    if (!m_backend)
+        return {};
+
+    // Fallback: Get the first dataclass instance from the data() method
+    Shiboken::AutoDecRef data(PyObject_CallMethod(m_backend, "data", nullptr));
+
+    if (PyErr_Occurred()) {
+        logPythonException("AutoQmlBridgeModel::getDictKeys: error calling backend.data()");
+        return {};
+    }
+
+    PyObject *firstItem = PyList_GetItem(data.object(), 0);
+    if (!firstItem)
+        return {};
+
+    if (PyDict_Check(firstItem)) {
+        QStringList fieldNames;
+        // New reference
+        PyObject *keys = PyDict_Keys(firstItem);
+        if (keys) {
+            Py_ssize_t size = PyList_Size(keys);
+            for (Py_ssize_t i = 0; i < size; ++i) {
+                // Borrowed reference
+                PyObject *key = PyList_GetItem(keys, i);
+                if (key) {
+                    const char *keyStr = Shiboken::String::toCString(key);
+                    fieldNames.append(QString::fromUtf8(keyStr));
+                }
+            }
+        }
+        Py_XDECREF(keys);
+        return fieldNames;
+    }
+    else
+        return {};
+
+}
+
+void AutoQmlBridgeModel::setupDictRoles()
+{
+    // Cache key names
+    m_dictKeyNames = getDictKeys();
+
+    // Clear existing roles
+    m_dictRoles.clear();
+
+    // Set up roles starting from a high number to avoid conflicts with Qt built-in roles
+    int baseRole = Qt::UserRole + 1000;
+
+    for (int i = 0; i < m_dictKeyNames.size(); ++i) {
+        const QString &keyName = m_dictKeyNames[i];
+        m_dictRoles[baseRole + i] = keyName.toUtf8();
+    }
+
+    qCDebug(lcQtBridge, "SetupDictRoles: Created %lld roles for dictionary fields",
+        static_cast<long long>(m_dictRoles.size()));
 }
 
 void *BridgePyTypeObjectModel::qt_metacast(const char *classname)

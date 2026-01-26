@@ -411,10 +411,14 @@ DataType inferDataType(PyObject *instance)
                                    typeString.contains("list[float") ||
                                    typeString.contains("list[bool");
 
+            bool isDictListObject = typeString.contains("List[dict") ||
+                                    typeString.contains("typing.List[dict") ||
+                                    typeString.contains("list[dict");
+
             if ((typeString.contains("list[") ||
                  typeString.startsWith("typing.List") ||
                  typeString.startsWith("List[")) &&
-                !isPrimitiveList) {
+                !isPrimitiveList && !isDictListObject) {
                 qCDebug(lcQtBridge,
                         "inferDataType: Type hint suggests DataClassList");
 
@@ -434,6 +438,10 @@ DataType inferDataType(PyObject *instance)
 
             // Check for list of primitive types or plain List
             if (isListTypeHint(typeString) || typeString == "list") {
+                if (isDictListObject){
+                    qCDebug(lcQtBridge, "inferDataType: Type hint suggests DictList");
+                    return DataType::DictList;
+                }
                 qCDebug(lcQtBridge, "inferDataType: Type hint suggests List");
                 return DataType::List;
             }
