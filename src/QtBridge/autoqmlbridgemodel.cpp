@@ -175,29 +175,9 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
         if (!item)
             return {};
 
-        if (PyUnicode_Check(item)) {
-            const char *utf8 = Shiboken::String::toCString(item);
-            if (!utf8)
-                return {};
-            return QString::fromUtf8(utf8);
-        }
-        if (PyLong_Check(item))
-            return QVariant(static_cast<int>(PyLong_AsLong(item)));;
-        if (PyFloat_Check(item))
-            return QVariant(PyFloat_AsDouble(item));
-        if (PyBool_Check(item))
-            return QVariant(item == Py_True);
-        if (item == Py_None)
-            return {};
-
-        // Fallback: convert to string using str()
-        Shiboken::AutoDecRef strObj(PyObject_Str(item));
-        if (!strObj.isNull() && PyUnicode_Check(strObj.object())) {
-            const char *utf8 = Shiboken::String::toCString(strObj.object());
-            if (utf8)
-                return QString::fromUtf8(utf8);
-        }
-        return {};
+        // Convert using registered PyObject* -> QVariant converter
+        auto variantOpt = pyObject2VariantOpt(item);
+        return variantOpt.value_or(QVariant());
     }
     case DataType::DataClassList: {
         Shiboken::GilState gil;
@@ -243,33 +223,10 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
             return {};
         }
 
-        // Convert the field value to QVariant
-        // TODO: Make this better. Use Shiboken conversion if possible/User conversions.h/.cpp
-        QVariant result;
-        if (PyUnicode_Check(fieldValue)) {
-            const char *utf8 = Shiboken::String::toCString(fieldValue);
-            if (utf8)
-                result = QString::fromUtf8(utf8);
-        } else if (PyLong_Check(fieldValue)) {
-            result = QVariant(static_cast<int>(PyLong_AsLong(fieldValue)));
-        } else if (PyFloat_Check(fieldValue)) {
-            result = QVariant(PyFloat_AsDouble(fieldValue));
-        } else if (PyBool_Check(fieldValue)) {
-            result = QVariant(fieldValue == Py_True);
-        } else if (fieldValue == Py_None) {
-            result = QVariant();
-        } else {
-            // Fallback: convert to string
-            Shiboken::AutoDecRef strObj(PyObject_Str(fieldValue));
-            if (!strObj.isNull() && PyUnicode_Check(strObj.object())) {
-                const char *utf8 = Shiboken::String::toCString(strObj.object());
-                if (utf8)
-                    result = QString::fromUtf8(utf8);
-            }
-        }
-
+        // Convert using registered PyObject* -> QVariant converter
+        auto variantOpt = pyObject2VariantOpt(fieldValue);
         Py_XDECREF(fieldValue);
-        return result;
+        return variantOpt.value_or(QVariant());
     }
     default:
         return {};
