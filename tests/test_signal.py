@@ -457,3 +457,39 @@ class TestSignal:
         assert root.property("emitCount") == 2, f"Expected 2 emits from QML, got {root.property('emitCount')}"
 
         assert any("QML: Emitted 2 signals" in msg for msg in messages), "Expected console message about emitting signals"
+
+    def test_signal_method_conflict_inherited(self, qtbot):
+        """Test that an error is raised when a derived class defines a method that conflicts with an inherited signal"""
+
+        class BaseWithSignal:
+            countChanged = Signal(int)
+
+            def __init__(self):
+                self._count = 0
+
+            @property
+            def count(self) -> int:
+                return self._count
+
+            @count.setter
+            def count(self, value: int):
+                self._count = value
+                self.countChanged.emit(value)
+
+            def data(self):
+                return [self._count]
+
+        class DerivedWithMethod(BaseWithSignal):
+            def __init__(self):
+                super().__init__()
+
+            def countChanged(self, value: int):
+                """This method conflicts with the inherited signal"""
+                pass
+
+        # Creating the derived class instance should raise a TypeError
+        # because detectHomonymousMethodError() should catch the conflict
+        with pytest.raises(TypeError, match=r"Class 'DerivedWithMethod' defines a method 'countChanged' that conflicts with a Signal of the same name inherited from 'BaseWithSignal'"):
+            derived = DerivedWithMethod()
+            bridge_instance(derived, name="DerivedWithMethod")
+

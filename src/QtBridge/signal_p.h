@@ -13,14 +13,13 @@ extern "C"
         PyObject_HEAD
         PyObject *signalName;         // Name of the signal
         PyObject *signatureArgs;      // Tuple of Qt type names for the signal signature
-        PyObject *homonymousMethod;   // Optional method with the same name
     };
 
     // Bound signal instance with emit(), connect(), disconnect() methods
     // Created when accessing a Signal descriptor on an instance
     struct QtBridgeSignalInstance {
         PyObject_HEAD
-        PyObject *source;             // The Python instance that owns this signal (borrowed ref)
+        PyObject *source;             // The Python instance that owns this signal
         QByteArray *signature;        // Pre-computed signature: "signalName(type1,type2,...)"
     };
 
@@ -47,12 +46,13 @@ const char* getName(PyObject *signalObj);
 // Get signal signature arguments
 PyObject* getArgs(PyObject *signalObj);
 
-// Get homonymous method if it exists
-PyObject* getHomonymousMethod(PyObject *signalObj);
-
 // Build full signal signature for QMetaObjectBuilder, e.g., "error(int,QString)"
 // To be used when registering signals in autoqmlbridge.cpp
 QByteArray buildSignature(PyObject *signalObj);
+
+// Detect if a method has overwritten a Signal and raise an error
+// This prevents the unsupported pattern of having a method with the same name as a signal
+void detectHomonymousMethodError(PyTypeObject *cls);
 
 } // namespace Signal
 } // namespace QtBridges

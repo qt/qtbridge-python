@@ -10,6 +10,7 @@
 #include <shiboken.h>
 #include <qobjectconnect.h>
 #include <signalmanager.h>
+#include <pep384ext.h>
 
 #include <QtCore/qbytearray.h>
 #include <cstring>
@@ -29,7 +30,6 @@ static void Signal_dealloc(QtBridgeSignal *self)
 {
     Py_XDECREF(self->signalName);
     Py_XDECREF(self->signatureArgs);
-    Py_XDECREF(self->homonymousMethod);
     PyObject_Free(self);
 }
 
@@ -62,11 +62,8 @@ static int Signal_init(QtBridgeSignal *self, PyObject *args, PyObject *kwds)
     // Store the converted Qt type names
     self->signatureArgs = qtTypeNames;
 
-    // Signal name will be set when __set_name__ is called
+    // Signal name will be set later
     self->signalName = nullptr;
-
-    // Homonymous method will be detected in __set_name__
-    self->homonymousMethod = nullptr;
 
     qCDebug(lcQtBridge) << "Signal.__init__ called with" << PyTuple_Size(args) << "type arguments";
 
@@ -85,33 +82,19 @@ static PyObject* Signal_get(QtBridgeSignal *self, PyObject *obj, PyObject *type)
         return reinterpret_cast<PyObject*>(self);
     }
 
-    // If there's a homonymous method, get the bound method from the instance
-    if (self->homonymousMethod && self->homonymousMethod != Py_None) {
-        // Get the bound method directly from the instance using the signal name
-        PyObject *boundMethod = PyObject_GetAttr(obj, self->signalName);
-        if (!boundMethod) {
-            PyErr_SetString(PyExc_RuntimeError, "Failed to get bound method for homonymous method");
-            return nullptr;
-        }
-        return boundMethod;
-    }
-
-    // Return a SignalInstance that supports connect/disconnect/emit
     return QtBridges::Signal::createSignalInstance(self, obj);
 }
 
 // Signal __set_name__ method (called when the signal is assigned to a class attribute)
 static PyObject* Signal_set_name(QtBridgeSignal *self, PyObject *args)
 {
-    PyObject *owner = nullptr;
-    PyObject *name = nullptr;
-
+    PyObject *owner, *name;
     if (!PyArg_ParseTuple(args, "OO", &owner, &name)) {
         return nullptr;
     }
 
     if (!PyUnicode_Check(name)) {
-        PyErr_SetString(PyExc_TypeError, "Signal name must be a string");
+        PyErr_SetString(PyExc_TypeError, "__set_name__ expects a string name");
         return nullptr;
     }
 
@@ -119,26 +102,6 @@ static PyObject* Signal_set_name(QtBridgeSignal *self, PyObject *args)
     Py_XDECREF(self->signalName);
     Py_INCREF(name);
     self->signalName = name;
-
-    // Check if there's a method with the same name (homonymous method)
-    // This allows obj.signalName() to call the method instead of the signal
-    if (PyType_Check(owner)) {
-        Shiboken::AutoDecRef method(PyObject_GetAttr(owner, name));
-        if (method.object() && method.object() != reinterpret_cast<PyObject*>(self)) {
-            // Found a different object with the same name - could be a method
-            if (PyCallable_Check(method.object()) && !QtBridges::Signal::isSignal(method.object())) {
-                qCDebug(lcQtBridge) << "Found homonymous method for signal:"
-                                    << Shiboken::String::toCString(name);
-                Py_XDECREF(self->homonymousMethod);
-                Py_INCREF(method.object());
-                self->homonymousMethod = method.object();
-            }
-        }
-        PyErr_Clear(); // Clear any errors from attribute lookup
-    }
-
-    qCDebug(lcQtBridge) << "Signal.__set_name__ called with name:"
-                        << Shiboken::String::toCString(name);
 
     Py_RETURN_NONE;
 }
@@ -193,6 +156,7 @@ PyTypeObject *QtBridgeSignal_TypeF()
 static void SignalInstance_dealloc(QtBridgeSignalInstance *self)
 {
     delete self->signature;
+    // Note: source is a borrowed ref, don't decref
     PyObject_Free(self);
 }
 
@@ -318,6 +282,14 @@ static PyObject *SignalInstance_emit(PyObject *self, PyObject *args)
     Py_RETURN_FALSE;
 }
 
+// SignalInstance __call__ method
+// handles signal() invocation
+static PyObject *SignalInstance_call(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    auto *signalInstance = reinterpret_cast<QtBridgeSignalInstance *>(self);
+    return SignalInstance_emit(self, args);
+}
+
 static PyMethodDef SignalInstance_methods[] = {
     {"connect", reinterpret_cast<PyCFunction>(SignalInstance_connect),
                 METH_VARARGS | METH_KEYWORDS, "Connect a slot to this signal"},
@@ -330,7 +302,7 @@ static PyMethodDef SignalInstance_methods[] = {
 static PyTypeObject *createSignalInstanceType()
 {
     PyType_Slot SignalInstanceType_slots[] = {
-        {Py_tp_call, reinterpret_cast<void *>(SignalInstance_emit)}, // Signal() -> Signal.emit()
+        {Py_tp_call, reinterpret_cast<void *>(SignalInstance_call)},
         {Py_tp_dealloc, reinterpret_cast<void *>(SignalInstance_dealloc)},
         {Py_tp_repr, reinterpret_cast<void *>(SignalInstance_repr)},
         {Py_tp_methods, reinterpret_cast<void *>(SignalInstance_methods)},
@@ -470,18 +442,6 @@ PyObject* getArgs(PyObject *signalObj)
     return signal->signatureArgs;
 }
 
-PyObject* getHomonymousMethod(PyObject *signalObj)
-{
-    if (!isSignal(signalObj))
-        return nullptr;
-
-    QtBridgeSignal *signal = reinterpret_cast<QtBridgeSignal*>(signalObj);
-    if (signal->homonymousMethod && signal->homonymousMethod != Py_None) {
-        return signal->homonymousMethod;
-    }
-    return nullptr;
-}
-
 QByteArray buildSignature(PyObject *signalObj)
 {
     if (!isSignal(signalObj))
@@ -562,11 +522,94 @@ PyObject *createSignalInstance(QtBridgeSignal *signal, PyObject *source)
     // the source will outlive the instance
     instance->source = source;
 
+
     // Pre-compute the signature using buildSignature from the Signal descriptor
     instance->signature = new QByteArray(buildSignature(
         reinterpret_cast<PyObject *>(signal)));
 
     return reinterpret_cast<PyObject *>(instance);
+}
+
+// Check if a method has overwritten a Signal in the class hierarchy.
+// If so, raise a clear error
+//
+// IMPORTANT: This function can only detect inherited signal conflicts, where a
+// derived class defines a method that shadows a signal from a base class.
+//
+// Same-class conflicts (signal and method defined in the same class) cannot be
+// detected because Python's descriptor protocol doesn't call __set_name__ when
+// the descriptor is immediately overwritten in the same class body. Python
+// processes the class body sequentially, so by the time the method definition
+// executes, it simply replaces the signal in the class dict, and __set_name__
+// is never invoked for the now-unreachable signal descriptor.
+//
+// Example that CAN be detected (inherited conflict):
+//   class Base:
+//       mySignal = Signal(int)  # __set_name__ IS called
+//   class Derived(Base):
+//       def mySignal(self): pass  # detectHomonymousMethodError will catch this
+//
+// Example that cannot be detected (same-class conflict):
+//   class MyClass:
+//       mySignal = Signal(int)    # Assigned to dict
+//       def mySignal(self): pass  # Overwrites before __set_name__ runs
+void detectHomonymousMethodError(PyTypeObject *cls)
+{
+    if (!cls)
+        return;
+
+    // Get the MRO to check base classes
+    Shiboken::AutoDecRef mroObj(PyObject_GetAttrString(reinterpret_cast<PyObject*>(cls), "__mro__"));
+    if (!mroObj || !PyTuple_Check(mroObj))
+        return;
+
+    PyObject *mro = mroObj.object();
+    Py_ssize_t mroSize = PyTuple_Size(mro);
+
+    // Iterate through the current class's attributes
+    PyObject *clsDict = PepType_GetDict(cls);
+    if (!clsDict)
+        return;
+
+    PyObject *key, *value;
+    Py_ssize_t pos = 0;
+
+    while (PyDict_Next(clsDict, &pos, &key, &value)) {
+        if (!PyCallable_Check(value))
+            continue;
+
+        // For each callable in the current class, check if any base class has a Signal with the same name
+        for (Py_ssize_t i = 1; i < mroSize; ++i) {  // Start from 1 to skip the class itself
+            PyObject *base = PyTuple_GetItem(mro, i);
+            if (!PyType_Check(base))
+                continue;
+
+            PyTypeObject *baseType = reinterpret_cast<PyTypeObject*>(base);
+            PyObject *baseDict = PepType_GetDict(baseType);
+            if (!baseDict)
+                continue;
+
+            // Check if base class has an attribute with this name
+            PyObject *baseAttr = PyDict_GetItem(baseDict, key);
+            if (baseAttr && isSignal(baseAttr)) {
+                // Found a Signal in a base class that's been overwritten by a method!
+                const char *signalName = Shiboken::String::toCString(key);
+
+                Shiboken::AutoDecRef clsNameObj(PyObject_GetAttrString(reinterpret_cast<PyObject*>(cls), "__name__"));
+                Shiboken::AutoDecRef baseNameObj(PyObject_GetAttrString(base, "__name__"));
+
+                const char *className = clsNameObj.isNull() ? "<unknown>" : Shiboken::String::toCString(clsNameObj);
+                const char *baseName = baseNameObj.isNull() ? "<unknown>" : Shiboken::String::toCString(baseNameObj);
+
+                PyErr_Format(PyExc_TypeError,
+                    "Class '%s' defines a method '%s' that conflicts with a Signal of the same name "
+                    "inherited from '%s'. Methods and Signals cannot share the same name. "
+                    "Please rename either the method or the Signal.",
+                    className, signalName, baseName);
+                return;
+            }
+        }
+    }
 }
 
 } // namespace Signal

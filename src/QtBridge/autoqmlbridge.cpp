@@ -426,11 +426,6 @@ void AutoQmlBridgePrivate::registerSignalsFromType(PyTypeObject *type)
             m_metaObjectBuilder->addSignal(signature);
 
             qCDebug(lcQtBridge) << "Registered signal:" << signature;
-
-            PyObject *homonymousMethod = QtBridges::Signal::getHomonymousMethod(value.object());
-            if (homonymousMethod) {
-                qCDebug(lcQtBridge) << "Signal" << attrName << "has homonymous method";
-            }
         }
     }
 }
@@ -492,6 +487,13 @@ PyObject *AutoQmlBridgePrivate::bridge_instance(PyObject *self, PyObject *args, 
         default: break;
     }
     qCDebug(lcQtBridge, "Inferred data_type: %s", inferredTypeName);
+
+    // Detect if any methods have overwritten signals
+    PyTypeObject *cls = Py_TYPE(instance);
+    QtBridges::Signal::detectHomonymousMethodError(cls);
+    if (PyErr_Occurred()) {
+        return nullptr;
+    }
 
     try {
         // Use the provided name for QML registration
@@ -588,6 +590,12 @@ PyObject *AutoQmlBridgePrivate::bridge_type(PyObject *self, PyObject *args, PyOb
 
     // Use type name if qmlName not provided
     const char *qml_name = qmlName ? qmlName : type->tp_name;
+
+    // Detect if any methods have overwritten signals (this is an error)
+    QtBridges::Signal::detectHomonymousMethodError(type);
+    if (PyErr_Occurred()) {
+        return nullptr;
+    }
 
     try {
         // Check if this type is already registered
