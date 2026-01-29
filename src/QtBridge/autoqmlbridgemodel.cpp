@@ -31,15 +31,290 @@
 
 namespace QtBridges {
 
+namespace {
+
+// Convert PyObjectWrapper in QVariant to AutoQmlBridgeModel if registered
+bool convertVariantToModel(QVariant *qvariant)
+{
+    if (!qvariant || !qvariant->isValid())
+        return false;
+
+    auto wrapper = qvariant->value<PySide::PyObjectWrapper>();
+    PyObject *pyObj = wrapper;  // Use implicit conversion operator
+    if (!pyObj)
+        return false;
+
+    // Check if this Python object has a registered AutoQmlBridgeModel
+    auto it = s_bridgeMap.find(pyObj);
+    if (it != s_bridgeMap.end()) {
+        // Replace the Python object with the C++ AutoQmlBridgeModel
+        AutoQmlBridgeModel *cppModel = it->second->model();
+
+        // Explicitly set C++ ownership to prevent Qt/QML from trying to delete this object
+        // The model is owned by shared_ptr<AutoQmlBridgePrivate>
+        QQmlEngine::setObjectOwnership(cppModel, QQmlEngine::CppOwnership);
+        *qvariant = QVariant::fromValue(cppModel);
+        qCDebug(lcQtBridge, "Converted PyObjectWrapper to AutoQmlBridgeModel (C++ ownership)");
+        return true;
+    }
+    return false;
+}
+
+// Handle WriteProperty call in qt_metacall
+int handleWriteProperty(AutoQmlBridgeModel *model, int id, void **args, PySideProperty *property)
+{
+    if (!args || !args[0] || !property || !property->d)
+        return -1;
+
+    // First, try interpreting as QVariant
+    auto *variantPtr = reinterpret_cast<QVariant*>(args[0]);
+    qCDebug(lcQtBridge, "WriteProperty received QVariant - type: %s, userType: %d",
+            variantPtr->typeName() ? variantPtr->typeName() : "unknown",
+            variantPtr->userType());
+
+    // Check if this QVariant contains a BridgePyTypeObjectModel
+    // (from QML instantiated Python types)
+    // If it's a BridgePyTypeObjectModel, we need to extract m_backend
+    if (variantPtr->canConvert<QObject*>()) {
+        auto *qobj = variantPtr->value<QObject*>();
+        if (qobj) {
+            // Direct cast: we know the type stored is BridgePyTypeObjectModel*
+            auto *bridgeModel = static_cast<BridgePyTypeObjectModel*>(qobj);
+            if (bridgeModel && bridgeModel->pythonInstance()) {
+                qCDebug(lcQtBridge,
+                        "WriteProperty: Converting BridgePyTypeObjectModel* to Python backend object");
+                Shiboken::GilState gil;
+
+                // Create a QVariant containing the Python object
+                // We'll convert it using PySide's variant converter
+                PyObject *backendObj = bridgeModel->pythonInstance();
+                Py_INCREF(backendObj);
+
+                // Convert Python object to QVariant for PySide
+                auto variantOpt = pyObject2VariantOpt(backendObj);
+                Py_DECREF(backendObj);
+
+                if (variantOpt.has_value()) {
+                    QVariant pythonVariant = variantOpt.value();
+                    void *convertedArgs[1] = { &pythonVariant };
+                    // this uses the registered metatype converters
+                    property->d->metaCall(model->pythonInstance(), QMetaObject::WriteProperty, convertedArgs);
+
+                    // Emit the notify signal after property write
+                    model->emitPropertyChanged(id);
+                    return -1;
+                }
+            }
+        }
+    }
+
+    // Check if this QVariant contains a QJSValue and convert if needed
+    QVariant converted = convertQVariantQJSValueToQtType(*variantPtr);
+
+    if (converted.userType() != variantPtr->userType()) {
+        qCDebug(lcQtBridge, "Converted QVariant(QJSValue) to %s",
+                converted.typeName() ? converted.typeName() : "unknown");
+
+        // Create new args array with converted QVariant
+        // this uses the registered metatype converters
+        void *convertedArgs[1] = { &converted };
+        property->d->metaCall(model->pythonInstance(), QMetaObject::WriteProperty, convertedArgs);
+
+        // Emit the notify signal after property write
+        model->emitPropertyChanged(id);
+        return -1;
+    }
+    // If no conversion was needed, return 0 to indicate fall through to normal handling
+    return 0;
+}
+
+// Handle ReadProperty call in qt_metacall
+void handleReadProperty(AutoQmlBridgeModel *model, int id, void **args)
+{
+    if (!args || !args[0])
+        return;
+
+    // Check if this is a list property by examining the meta-property type
+    // if so, skip the QVariant conversion
+    const QMetaObject *mo = model->metaObject();
+    int propertyIndex = id;
+    bool isListProperty = false;
+    QByteArray typeName;
+
+    if (propertyIndex >= 0 && propertyIndex < mo->propertyCount()) {
+        QMetaProperty metaProp = mo->property(propertyIndex);
+        typeName = metaProp.typeName();
+        // Check if it's a QQmlListProperty - these are NOT passed as QVariant*
+        if (typeName.startsWith("QQmlListProperty")) {
+            isListProperty = true;
+            qCDebug(lcQtBridge,
+                    "ReadProperty for QQmlListProperty: %s (skipping QVariant conversion)",
+                    metaProp.name());
+        }
+    }
+
+    // Only treat as QVariant if it's NOT a list property
+    if (!isListProperty) {
+        auto *propertyValue = reinterpret_cast<QVariant *>(args[0]);
+        if (typeName == "QVariantList" || typeName == "QVariantMap") {
+            // For primitive lists/maps, return the QVariant directly to QML
+            *reinterpret_cast<QVariant *>(args[0]) = *propertyValue;
+            return;
+        }
+        if (propertyValue->canConvert<PySide::PyObjectWrapper>()) {
+            // Check if this is a bridge_type() created object (in s_typeModelMap)
+            // These should be returned as QObject* for QML, not converted to Model
+            auto wrapper = propertyValue->value<PySide::PyObjectWrapper>();
+            PyObject *pyObj = wrapper;
+            if (pyObj) {
+                auto typeIt = s_typeModelMap.find(pyObj);
+                if (typeIt != s_typeModelMap.end()) {
+                    // This is a QML-instantiated object (bridge_type), return as QObject*
+                    BridgePyTypeObjectModel *qmlObj = typeIt->second;
+                    *propertyValue = QVariant::fromValue(static_cast<QObject*>(qmlObj));
+                    qCDebug(lcQtBridge,
+                            "Converted PyObjectWrapper to QObject* for QML-instantiated type (QObject*=%p)",
+                            qmlObj);
+                } else {
+                    // Check if this is in s_bridgeMap (registered via bridge_instance)
+                    auto bridgeIt = s_bridgeMap.find(pyObj);
+                    if (bridgeIt != s_bridgeMap.end()) {
+                        // This is a bridge_instance() object, convert to Model
+                        convertVariantToModel(propertyValue);
+                        qCDebug(lcQtBridge,
+                                "Converted PyObjectWrapper to AutoQmlBridgeModel for "
+                                "bridge_instance");
+                    } else {
+                        qCDebug(lcQtBridge,
+                                "ReadProperty: PyObject %p not found in s_typeModelMap or "
+                                "s_bridgeMap, leaving as PyObjectWrapper",
+                                pyObj);
+                    }
+                }
+            } else {
+                qCDebug(lcQtBridge,
+                        "ReadProperty: PyObjectWrapper is null for property id %d", id);
+            }
+        }
+    }
+}
+
+// Handle InvokeMetaMethod call in qt_metacall
+int handleInvokeMethod(AutoQmlBridgeModel *model, int id, void **args)
+{
+    // Get method info
+    const QMetaMethod method = model->metaObject()->method(id);
+    const QByteArray methodName = method.name();
+    const int paramCount = method.parameterCount();
+
+    // Print method name
+    qCDebug(lcQtBridge, "Trying to call Python method: %s", methodName.constData());
+
+    // Fetch the Python method
+    Shiboken::AutoDecRef methodNameStr(PyUnicode_FromString(methodName.constData()));
+    if (!methodNameStr) {
+        logPythonException("qt_metacall: Failed to convert method name to Python string");
+        return id;
+    }
+
+    Shiboken::AutoDecRef callable(PyObject_GetAttr(model->pythonInstance(), methodNameStr));
+    if (callable.isNull()) {
+        qCWarning(lcQtBridge, "Failed to get Python method: %s", methodName.constData());
+        logPythonException("qt_metacall: get Python method");
+        return id;
+    }
+
+    // Create arguments tuple
+    Shiboken::AutoDecRef pyArgs(PyTuple_New(paramCount));
+    if (!pyArgs) {
+        logPythonException("qt_metacall: PyTuple_New");
+        return id;
+    }
+
+    for (int i = 0; i < paramCount; ++i) {
+        const QVariant& arg = *reinterpret_cast<QVariant*>(args[i + 1]);
+        QVariant convertedArg = arg;
+
+        if (arg.userType() == qMetaTypeId<QJSValue>())
+            convertedArg = convertQVariantQJSValueToQtType(arg);
+
+        PyObject* pyArg = variant2PyObject(convertedArg);
+        if (!pyArg) {
+            logPythonException("qt_metacall: arg conversion");
+            return id;
+        }
+        PyTuple_SetItem(pyArgs, i, pyArg);
+    }
+
+    // Call the Python method
+    Shiboken::AutoDecRef result(PyObject_CallObject(callable, pyArgs));
+    if (result.isNull()) {
+        if (PyErr_Occurred()) {
+            Shiboken::Errors::Stash stash;
+            logPythonException("qt_metacall: call Python method", stash.getException());
+        } else {
+            PyErr_SetString(PyExc_RuntimeError, "qt_metacall: Unknown error in Python method");
+        }
+        return id;
+    }
+
+    // Handle return value if method has a non-void return type
+    const QByteArray returnTypeName = method.typeName();
+    if (returnTypeName != "void" && !returnTypeName.isEmpty() && args[0]) {
+        QVariant *returnValue = reinterpret_cast<QVariant*>(args[0]);
+        auto variantOpt = pyObject2VariantOpt(result.object());
+        if (variantOpt.has_value()) {
+            *returnValue = variantOpt.value();
+            if (returnValue->canConvert<PySide::PyObjectWrapper>())
+                convertVariantToModel(returnValue);
+            qCDebug(lcQtBridge) << "Method" << methodName << "returned:" << *returnValue;
+        } else {
+            qCWarning(lcQtBridge) << "Failed to convert return value for method" << methodName
+                                  << "with return type" << returnTypeName;
+        }
+    }
+    return id;
+}
+
+// Call a decorated Python method with no arguments
+bool callDecoratedMethod(PyObject *backend, const char *methodName, const char *context)
+{
+    // Get the method from the instance (which will bind it)
+    Shiboken::AutoDecRef instanceMethod(PyObject_GetAttrString(backend, methodName));
+    if (!instanceMethod) {
+        qCWarning(lcQtBridge, "%s: Failed to get instance method: %s", context, methodName);
+        PyErr_Clear();
+        return false;
+    }
+
+    // Call the method with no arguments
+    Shiboken::AutoDecRef emptyTuple(PyTuple_New(0));
+    Shiboken::AutoDecRef result(PyObject_Call(instanceMethod.object(), emptyTuple.object(), nullptr));
+
+    if (!result) {
+        qCWarning(lcQtBridge, "%s: Decorated method %s returned NULL", context, methodName);
+        if (PyErr_Occurred()) {
+            std::string error = std::string(context) + ": Error calling decorated method " + methodName;
+            logPythonException(error.c_str());
+            PyErr_Clear();
+        } else {
+            qCWarning(lcQtBridge, "%s: No Python error set for failed call", context);
+        }
+        return false;
+    }
+    return true;
+}
+
+} // anonymous namespace
+
 constexpr const char* DATA_METHOD_NAME = "data";
 
 AutoQmlBridgeModel::AutoQmlBridgeModel(PyObject *backend, const QMetaObject *metaObject,
                                        DataType datatype)
     : m_backend(backend), m_dynamicMetaObject(metaObject), m_datatype(datatype)
 {
-    if (m_backend) {
+    if (m_backend)
         Py_XINCREF(m_backend);
-    }
 
 
     if (m_datatype == DataType::DataClassList) {
@@ -284,9 +559,8 @@ QHash<int, QByteArray> AutoQmlBridgeModel::roleNames() const
         break;
     case DataType::DataClassList:
         // Return the cached dataclass roles if available
-        if (!m_dataClassRoles.isEmpty()) {
+        if (!m_dataClassRoles.isEmpty())
             return m_dataClassRoles;
-        }
         // Fallback to display role if roles not set up yet
         roles[Qt::DisplayRole] = "display";
         break;
@@ -325,9 +599,8 @@ QModelIndex AutoQmlBridgeModel::index(int row, int column, const QModelIndex &pa
 
 const QMetaObject *AutoQmlBridgeModel::metaObject() const
 {
-    if (m_dynamicMetaObject) {
+    if (m_dynamicMetaObject)
         return m_dynamicMetaObject;
-    }
     return QAbstractItemModel::metaObject();
 }
 
@@ -340,34 +613,6 @@ int AutoQmlBridgeModel::qt_metacall(QMetaObject::Call call, int id, void **args)
 {
     // Acquire the GIL
     Shiboken::GilState gil;
-
-    // To convert PyObjectWrapper to AutoQmlBridgeModel
-    auto convertVariantToModel = [](QVariant *qvariant) -> bool {
-        if (!qvariant || !qvariant->isValid()) {
-            return false;
-        }
-
-        auto wrapper = qvariant->value<PySide::PyObjectWrapper>();
-        PyObject *pyObj = wrapper;  // Use implicit conversion operator
-        if (!pyObj) {
-            return false;
-        }
-
-        // Check if this Python object has a registered AutoQmlBridgeModel
-        auto it = s_bridgeMap.find(pyObj);
-        if (it != s_bridgeMap.end()) {
-            // Replace the Python object with the C++ AutoQmlBridgeModel
-            AutoQmlBridgeModel *cppModel = it->second->model();
-
-            // Explicitly set C++ ownership to prevent Qt/QML from trying to delete this object
-            // The model is owned by shared_ptr<AutoQmlBridgePrivate>
-            QQmlEngine::setObjectOwnership(cppModel, QQmlEngine::CppOwnership);
-            *qvariant = QVariant::fromValue(cppModel);
-            qCDebug(lcQtBridge, "Converted PyObjectWrapper to AutoQmlBridgeModel (C++ ownership)");
-            return true;
-        }
-        return false;
-    };
 
     auto base_id = QAbstractItemModel::qt_metacall(call, id, args);
     if (base_id < 0)
@@ -387,137 +632,23 @@ int AutoQmlBridgeModel::qt_metacall(QMetaObject::Call call, int id, void **args)
         }
 
         if (call == QMetaObject::WriteProperty) {
-            // QML may pass QVariant containing QJSValue, convert to proper Qt type
-            if (args && args[0]) {
-                // First, try interpreting as QVariant
-                auto *variantPtr = reinterpret_cast<QVariant*>(args[0]);
-                qCDebug(lcQtBridge, "WriteProperty received QVariant - type: %s, userType: %d",
-                        variantPtr->typeName() ? variantPtr->typeName() : "unknown",
-                        variantPtr->userType());
-
-                // Check if this QVariant contains a BridgePyTypeObjectModel
-                // (from QML instantiated Python types)
-                // If it's a BridgePyTypeObjectModel, we need to extract m_backend
-                if (variantPtr->canConvert<QObject*>()) {
-                    auto *qobj = variantPtr->value<QObject*>();
-                    if (qobj) {
-                        // Direct cast: we know the type stored is BridgePyTypeObjectModel*
-                        auto *model = static_cast<BridgePyTypeObjectModel*>(qobj);
-                        if (model && model->m_backend) {
-                            qCDebug(lcQtBridge,
-                                    "WriteProperty: Converting BridgePyTypeObjectModel* to Python backend object");
-                            Shiboken::GilState gil;
-
-                            // Create a QVariant containing the Python object
-                            // We'll convert it using PySide's variant converter
-                            PyObject *backendObj = model->m_backend;
-                            Py_INCREF(backendObj);
-
-                            // Convert Python object to QVariant for PySide
-                            auto variantOpt = pyObject2VariantOpt(backendObj);
-                            Py_DECREF(backendObj);
-
-                            if (variantOpt.has_value()) {
-                                QVariant pythonVariant = variantOpt.value();
-                                void *convertedArgs[1] = { &pythonVariant };
-                                property->d->metaCall(m_backend, call, convertedArgs);
-
-                                // Emit the notify signal after property write
-                                emitPropertyChanged(id);
-                                return -1;
-                            }
-                        }
-                    }
-                }
-
-                // Check if this QVariant contains a QJSValue and convert if needed
-                QVariant converted = convertQVariantQJSValueToQtType(*variantPtr);
-
-                if (converted.userType() != variantPtr->userType()) {
-                    qCDebug(lcQtBridge, "Converted QVariant(QJSValue) to %s",
-                            converted.typeName() ? converted.typeName() : "unknown");
-
-                    // Create new args array with converted QVariant
-                    void *convertedArgs[1] = { &converted };
-                    property->d->metaCall(m_backend, call, convertedArgs);
-
-                    // Emit the notify signal after property write
-                    emitPropertyChanged(id);
-                    return -1;
-                }
-                // If no conversion was needed, fall through to normal handling
+            // Handle special conversions for WriteProperty
+            int result = handleWriteProperty(this, id, args, property);
+            if (result == -1) {
+                // Early return was requested (conversion complete)
+                return -1;
             }
+            // If result is 0, fall through to normal handling
         }
 
         // Forward the call to PySidePropertyPrivate::metaCall
+        // this uses the registered metatype converters
         property->d->metaCall(m_backend, call, args);
 
         // For ReadProperty, check if the returned PyObject has an associated AutoQmlBridgeModel
         // If so, replace it with the C++ model for QML
-        if (call == QMetaObject::ReadProperty && args[0]) {
-            // Check if this is a list property by examining the meta-property type
-            // if so, skip the QVariant conversion
-            const QMetaObject *mo = metaObject();
-            int propertyIndex = id;
-            bool isListProperty = false;
-            QByteArray typeName;
-
-            if (propertyIndex >= 0 && propertyIndex < mo->propertyCount()) {
-                QMetaProperty metaProp = mo->property(propertyIndex);
-                typeName = metaProp.typeName();
-                // Check if it's a QQmlListProperty - these are NOT passed as QVariant*
-                if (typeName.startsWith("QQmlListProperty")) {
-                    isListProperty = true;
-                    qCDebug(lcQtBridge,
-                            "ReadProperty for QQmlListProperty: %s (skipping QVariant conversion)",
-                            metaProp.name());
-                }
-            }
-
-            // Only treat as QVariant if it's NOT a list property
-            if (!isListProperty) {
-                auto *propertyValue = reinterpret_cast<QVariant *>(args[0]);
-                if (typeName == "QVariantList" || typeName == "QVariantMap") {
-                    // For primitive lists/maps, return the QVariant directly to QML
-                    *reinterpret_cast<QVariant *>(args[0]) = *propertyValue;
-                    return -1;
-                }
-                if (propertyValue->canConvert<PySide::PyObjectWrapper>()) {
-                    // Check if this is a bridge_type() created object (in s_typeModelMap)
-                    // These should be returned as QObject* for QML, not converted to Model
-                    auto wrapper = propertyValue->value<PySide::PyObjectWrapper>();
-                    PyObject *pyObj = wrapper;
-                    if (pyObj) {
-                        auto typeIt = s_typeModelMap.find(pyObj);
-                        if (typeIt != s_typeModelMap.end()) {
-                            // This is a QML-instantiated object (bridge_type), return as QObject*
-                            BridgePyTypeObjectModel *qmlObj = typeIt->second;
-                            *propertyValue = QVariant::fromValue(static_cast<QObject*>(qmlObj));
-                            qCDebug(lcQtBridge,
-                                    "Converted PyObjectWrapper to QObject* for QML-instantiated type (QObject*=%p)",
-                                    qmlObj);
-                        } else {
-                            // Check if this is in s_bridgeMap (registered via bridge_instance)
-                            auto bridgeIt = s_bridgeMap.find(pyObj);
-                            if (bridgeIt != s_bridgeMap.end()) {
-                                // This is a bridge_instance() object, convert to Model
-                                convertVariantToModel(propertyValue);
-                                qCDebug(lcQtBridge,
-                                        "Converted PyObjectWrapper to AutoQmlBridgeModel for "
-                                        "bridge_instance");
-                            } else {
-                                qCDebug(lcQtBridge,
-                                        "ReadProperty: PyObject %p not found in s_typeModelMap or "
-                                        "s_bridgeMap, leaving as PyObjectWrapper",
-                                        pyObj);
-                            }
-                        }
-                    } else {
-                        qCDebug(lcQtBridge,
-                                "ReadProperty: PyObjectWrapper is null for property id %d", id);
-                    }
-                }
-            }
+        if (call == QMetaObject::ReadProperty) {
+            handleReadProperty(this, id, args);
         }
 
         // For WriteProperty, emit the notify signal after the property has been set
@@ -529,77 +660,7 @@ int AutoQmlBridgeModel::qt_metacall(QMetaObject::Call call, int id, void **args)
     }
 
     if (call == QMetaObject::InvokeMetaMethod) {
-        // Get method info
-        const QMetaMethod method = m_dynamicMetaObject->method(id);
-        const QByteArray methodName = method.name();
-        const int paramCount = method.parameterCount();
-
-        // Print method name
-        qCDebug(lcQtBridge, "Trying to call Python method: %s", methodName.constData());
-
-        // Fetch the Python method
-        Shiboken::AutoDecRef methodNameStr(PyUnicode_FromString(methodName.constData()));
-        if (!methodNameStr) {
-            logPythonException("qt_metacall: Failed to convert method name to Python string");
-            return id;
-        }
-
-        Shiboken::AutoDecRef callable(PyObject_GetAttr(m_backend, methodNameStr));
-        if (callable.isNull()) {
-            qCWarning(lcQtBridge, "Failed to get Python method: %s", methodName.constData());
-            logPythonException("qt_metacall: get Python method");
-            return id;
-        }
-
-        // Create arguments tuple
-        Shiboken::AutoDecRef pyArgs(PyTuple_New(paramCount));
-        if (!pyArgs) {
-            logPythonException("qt_metacall: PyTuple_New");
-            return id;
-        }
-
-        for (int i = 0; i < paramCount; ++i) {
-            const QVariant& arg = *reinterpret_cast<QVariant*>(args[i + 1]);
-            QVariant convertedArg = arg;
-
-            if (arg.userType() == qMetaTypeId<QJSValue>())
-                convertedArg = convertQVariantQJSValueToQtType(arg);
-
-            PyObject* pyArg = variant2PyObject(convertedArg);
-            if (!pyArg) {
-                logPythonException("qt_metacall: arg conversion");
-                return id;
-            }
-            PyTuple_SetItem(pyArgs, i, pyArg);
-        }
-
-        // Call the Python method
-        Shiboken::AutoDecRef result(PyObject_CallObject(callable, pyArgs));
-        if (result.isNull()) {
-            if (PyErr_Occurred()) {
-                Shiboken::Errors::Stash stash;
-                logPythonException("qt_metacall: call Python method", stash.getException());
-            } else {
-                PyErr_SetString(PyExc_RuntimeError, "qt_metacall: Unknown error in Python method");
-            }
-            return id;
-        }
-
-        // Handle return value if method has a non-void return type
-        const QByteArray returnTypeName = method.typeName();
-        if (returnTypeName != "void" && !returnTypeName.isEmpty() && args[0]) {
-            QVariant *returnValue = reinterpret_cast<QVariant*>(args[0]);
-            auto variantOpt = pyObject2VariantOpt(result.object());
-            if (variantOpt.has_value()) {
-                *returnValue = variantOpt.value();
-                if (returnValue->canConvert<PySide::PyObjectWrapper>())
-                    convertVariantToModel(returnValue);
-                qCDebug(lcQtBridge) << "Method" << methodName << "returned:" << *returnValue;
-            } else {
-                qCWarning(lcQtBridge) << "Failed to convert return value for method" << methodName
-                                      << "with return type" << returnTypeName;
-            }
-        }
+        return handleInvokeMethod(this, id, args);
     }
     return id;
 }
@@ -911,13 +972,11 @@ void AutoQmlBridgeModel::emitPropertyChanged(int propertyIndex)
 
 QStringList AutoQmlBridgeModel::getDataClassFieldNames() const
 {
-    if (!m_dataClassFieldNames.isEmpty()) {
+    if (!m_dataClassFieldNames.isEmpty())
         return m_dataClassFieldNames;
-    }
 
-    if ((m_datatype != DataType::DataClassList && m_datatype != DataType::Table) || !m_backend) {
+    if ((m_datatype != DataType::DataClassList && m_datatype != DataType::Table) || !m_backend)
         return {};
-    }
 
     // Use shared helper to get the return type hint of data()
     Shiboken::AutoDecRef returnType(QtBridges::getDataMethodReturnTypeHint(m_backend));
@@ -1038,28 +1097,7 @@ void BridgePyTypeObjectModel::callCompleteDecorators()
 
         // Check for QtBridges.complete decorator type
         if (qstrcmp(typeName, "QtBridges.complete") == 0) {
-            // Get the method from the instance (which will bind it)
-            Shiboken::AutoDecRef instanceMethod(PyObject_GetAttrString(m_backend, attrName));
-            if (!instanceMethod) {
-                qCWarning(lcQtBridge, "BridgePyTypeObjectModel: Failed to get instance method: %s", attrName);
-                PyErr_Clear();
-                continue;
-            }
-
-            // Call the method with no arguments
-            Shiboken::AutoDecRef emptyTuple(PyTuple_New(0));
-            Shiboken::AutoDecRef result(PyObject_Call(instanceMethod.object(), emptyTuple.object(), nullptr));
-
-            if (!result) {
-                qCWarning(lcQtBridge, "BridgePyTypeObjectModel: @complete method %s returned NULL", attrName);
-                if (PyErr_Occurred()) {
-                    std::string error = std::string("BridgePyTypeObjectModel: Error calling @complete decorated method ") + attrName;
-                    logPythonException(error.c_str());
-                    PyErr_Clear();
-                } else {
-                    qCWarning(lcQtBridge, "BridgePyTypeObjectModel: No Python error set for failed call");
-                }
-            }
+            callDecoratedMethod(m_backend, attrName, "BridgePyTypeObjectModel");
         }
     }
 
