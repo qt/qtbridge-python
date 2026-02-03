@@ -5,6 +5,18 @@ from typing import Any, List, Protocol, overload
 from collections.abc import Callable
 
 
+class Signal:
+    """
+    QtBridge Signal descriptor for emitting signals in QML-connected classes.
+    This is used to define signals that can be emitted to notify QML of changes, or trigger
+    QML/JavaScript functions from Python.
+    """
+    def __init__(self, *args: Any) -> None: ...
+    def emit(self, *args: Any) -> None: ...
+    def connect(self, slot: Callable[..., Any]) -> None: ...
+    def disconnect(self, slot: Callable[..., Any] | None = None) -> None: ...
+
+
 class DataProvider(Protocol):
     """
     Defines the required interface for data models.
