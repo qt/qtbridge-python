@@ -151,6 +151,40 @@ instructions:
       equals_value: Windows
     userMessageOnFailure: >
       Failed to repair wheel with repairwheel.
+
+  - type: ExecuteCommand
+    command: "{{.Env.ENV_PIP}} install pytest pytest-cov pytest-qt numpy"
+    maxTimeInSeconds: 6000
+    maxTimeBetweenOutput: 1200
+    userMessageOnFailure: >
+      Failed to install pytest.
+
+  - type: EnvironmentVariable
+    variableName: QT_LOGGING_RULES
+    variableValue: "qtbridges.debug=true"
+
+  - type: EnvironmentVariable
+    variableName: PYTEST
+    variableValue: "{{.AgentWorkingDir}}\\qt\\qtbridge-python\\env\\Scripts\\pytest.exe"
+    enable_if:
+      condition: property
+      property: host.os
+      equals_value: Windows
+  - type: EnvironmentVariable
+    variableName: PYTEST
+    variableValue: "{{.AgentWorkingDir}}/qt/qtbridge-python/env/bin/pytest"
+    disable_if:
+      condition: property
+      property: host.os
+      equals_value: Windows
+
+  - type: ExecuteCommand
+    command: "{{.Env.PYTEST}} tests/"
+    maxTimeInSeconds: 6000
+    maxTimeBetweenOutput: 1200
+    userMessageOnFailure: >
+      Failed to run tests.
+
   - type: UploadArtifact
     archiveDirectory: "{{.AgentWorkingDir}}/qt/qtbridge-python/"
     transferType: UploadModuleBuildArtifact
