@@ -3,6 +3,7 @@
 
 import pytest
 import os
+import sys
 import tempfile
 from PySide6.QtCore import QUrl, qInstallMessageHandler, QtMsgType
 from PySide6.QtQml import QQmlApplicationEngine
@@ -43,6 +44,7 @@ class TestErrorHandling:
             messages = [msg for msg in messages if msg['type'] == msg_type]
         return messages
 
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_no_data_method(self, qtbot):
         """Test that error is raised when data() method is missing"""
 
@@ -300,6 +302,7 @@ class TestErrorHandling:
             finally:
                 os.unlink(qml_path)
 
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_debug_vs_release_message_format(self, qtbot):
         """Test that debug builds show more detailed messages than release builds"""
         self.setup_message_capture()
@@ -354,6 +357,7 @@ class TestErrorHandling:
         finally:
             os.unlink(qml_path)
 
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_bridge_instance_infer_data_type_empty_data(self, qtbot):
         """Test that bridge_instance raises an error when data() has no type hint and
            returns empty list."""

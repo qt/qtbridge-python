@@ -97,6 +97,7 @@ Item {
         assert any("ListView count: 3" in msg for msg in messages), \
             f"Expected ListView count message, got: {messages}"
 
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_method_returns_model(self, qtbot):
         """Test that a public method returning a registered model works in QML ListView"""
         class UserResource:

@@ -1,6 +1,8 @@
 # Copyright (C) 2025 The Qt Company Ltd.
 # SPDX-License-Identifier: LicenseRef-Qt-Commercial OR LGPL-3.0-only
 
+from __future__ import annotations
+
 from PySide6.QtCore import QRangeModel
 from PySide6.QtQml import qmlRegisterSingletonInstance
 

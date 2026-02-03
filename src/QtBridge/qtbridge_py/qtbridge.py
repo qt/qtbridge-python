@@ -1,6 +1,8 @@
 # Copyright (C) 2025 The Qt Company Ltd.
 # SPDX-License-Identifier: LicenseRef-Qt-Commercial OR LGPL-3.0-only
 
+from __future__ import annotations
+
 import sys
 import inspect
 from functools import wraps
@@ -8,7 +10,6 @@ from pathlib import Path
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
-
 
 def qtbridge(
     module: str | None = None,

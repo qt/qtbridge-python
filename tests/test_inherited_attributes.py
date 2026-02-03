@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
 import pytest
+import sys
 import tempfile
 from PySide6.QtCore import QUrl, qInstallMessageHandler
 from PySide6.QtQml import QQmlApplicationEngine
@@ -63,6 +64,7 @@ class TestInheritedAttributes:
         self.captured_messages.clear()
         self.original_handler = qInstallMessageHandler(self.message_handler)
 
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_inherited_method_and_property_qml(self, qtbot):
         bridge_type(DerivedResource, uri="test.inherited", version="1.0")
         self.setup_message_capture()

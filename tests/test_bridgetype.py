@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
 import os
+import sys
 import pytest
 import tempfile
 from PySide6.QtCore import QUrl, qInstallMessageHandler
@@ -322,6 +323,7 @@ class TestBridgeTypeDecorators:
         finally:
             os.unlink(temp_qml_path)
 
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_bridge_type_as_model_without_data_method(self, qtbot):
         """Test that error is logged when bridge_type() type is used as model without data() method"""
         self.setup_message_capture()
