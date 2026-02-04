@@ -192,40 +192,47 @@ PyTypeObject *Complete_TypeF(void)
 }
 }
 
-void initInsertDecorator(PyObject *module)
+int initInsertDecorator(PyObject *module)
 {
     Py_XINCREF(Insert_TypeF());
     PyModule_AddObject(module, "insert", reinterpret_cast<PyObject *>(Insert_TypeF()));
+    return 0;
 }
 
-void initRemoveDecorator(PyObject *module)
+int initRemoveDecorator(PyObject *module)
 {
     Py_XINCREF(Remove_TypeF());
     PyModule_AddObject(module, "remove", reinterpret_cast<PyObject *>(Remove_TypeF()));
+    return 0;
 }
 
-void initMoveDecorator(PyObject *module)
+int initMoveDecorator(PyObject *module)
 {
     Py_XINCREF(Move_TypeF());
     PyModule_AddObject(module, "move", reinterpret_cast<PyObject *>(Move_TypeF()));
+    return 0;
 }
 
-void initEditDecorator(PyObject *module)
+int initEditDecorator(PyObject *module)
 {
     auto *type = Edit_TypeF();
     if (PyModule_AddObject(module, "edit", reinterpret_cast<PyObject *>(type)) < 0) {
         PyErr_Print();
+        return -1;
     }
+    return 0;
 }
 
-void initResetDecorator(PyObject *module)
+int initResetDecorator(PyObject *module)
 {
     Py_XINCREF(Reset_TypeF());
     PyModule_AddObject(module, "reset", reinterpret_cast<PyObject *>(Reset_TypeF()));
+    return 0;
 }
 
-void initCompleteDecorator(PyObject *module)
+int initCompleteDecorator(PyObject *module)
 {
     Py_XINCREF(Complete_TypeF());
     PyModule_AddObject(module, "complete", reinterpret_cast<PyObject *>(Complete_TypeF()));
+    return 0;
 }

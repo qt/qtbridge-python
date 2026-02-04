@@ -80,11 +80,11 @@ public:
 
 } // namespace QtBridges
 
-void initInsertDecorator(PyObject *module);
-void initRemoveDecorator(PyObject *module);
-void initMoveDecorator(PyObject *module);
-void initEditDecorator(PyObject *module);
-void initResetDecorator(PyObject *module);
-void initCompleteDecorator(PyObject *module);
+int initInsertDecorator(PyObject *module);
+int initRemoveDecorator(PyObject *module);
+int initMoveDecorator(PyObject *module);
+int initEditDecorator(PyObject *module);
+int initResetDecorator(PyObject *module);
+int initCompleteDecorator(PyObject *module);
 
 #endif // UPDATEQMLDECORATOR_P_H

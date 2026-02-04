@@ -384,36 +384,37 @@ QByteArray pythonTypeToQtTypeName(PyObject *pyType)
     return "QVariant";
 }
 
-void init(PyObject *module)
+int init(PyObject *module)
 {
     auto *signalType = QtBridgeSignal_TypeF();
     if (!signalType) {
         qCWarning(lcQtBridge) << "Failed to create QtBridge.Signal type";
-        return;
+        return -1;
     }
 
     Py_INCREF(signalType);
     if (PyModule_AddObject(module, "Signal", reinterpret_cast<PyObject*>(signalType)) < 0) {
         Py_DECREF(signalType);
         qCWarning(lcQtBridge) << "Failed to add QtBridge.Signal to module";
-        return;
+        return -1;
     }
 
     // Also register the SignalInstance type
     auto *signalInstanceType = QtBridgeSignalInstance_TypeF();
     if (!signalInstanceType) {
         qCWarning(lcQtBridge) << "Failed to create QtBridge.SignalInstance type";
-        return;
+        return -1;
     }
 
     Py_INCREF(signalInstanceType);
     if (PyModule_AddObject(module, "SignalInstance", reinterpret_cast<PyObject*>(signalInstanceType)) < 0) {
         Py_DECREF(signalInstanceType);
         qCWarning(lcQtBridge) << "Failed to add QtBridge.SignalInstance to module";
-        return;
+        return -1;
     }
 
     qCDebug(lcQtBridge) << "QtBridge.Signal and SignalInstance types initialized successfully";
+    return 0;
 }
 
 bool isSignal(PyObject *obj)

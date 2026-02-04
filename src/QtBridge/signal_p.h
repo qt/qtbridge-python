@@ -35,7 +35,7 @@ namespace QtBridges {
 namespace Signal {
 
 // Initialize the Signal type and add it to the module
-void init(PyObject *module);
+int init(PyObject *module);
 
 // Check if an object is a QtBridge Signal
 bool isSignal(PyObject *obj);

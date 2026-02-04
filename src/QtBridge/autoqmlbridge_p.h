@@ -78,6 +78,6 @@ extern std::unordered_map<PyObject*, BridgePyTypeObjectModel*> s_typeModelMap;
 
 } // namespace QtBridges
 
-void initAutoQmlBridge(PyObject *module);
+int initAutoQmlBridge(PyObject *module);
 
 #endif // AUTOQMLBRIDGE_P_H

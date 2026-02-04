@@ -684,7 +684,7 @@ void AutoQmlBridgePrivate::setBackend(PyObject *backend)
 
 } // namespace QtBridges
 
-void initAutoQmlBridge(PyObject *module)
+int initAutoQmlBridge(PyObject *module)
 {
     // Initialize conversion functions
     QtBridges::registerPyObjectMetaTypeConversions();
@@ -722,9 +722,10 @@ void initAutoQmlBridge(PyObject *module)
     PyObject *bridge_typeFunc = PyCFunction_New(&bridge_typeDef, nullptr);
 
     if (!bridge_instanceFunc || !bridge_typeFunc) {
-        return;
+        return -1;
     }
 
     PyModule_AddObject(module, "bridge_instance", bridge_instanceFunc);
     PyModule_AddObject(module, "bridge_type", bridge_typeFunc);
+    return 0;
 }
