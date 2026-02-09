@@ -21,11 +21,32 @@ instructions:
     maxTimeInSeconds: 6000
     maxTimeBetweenOutput: 1200
     enable_if:
-      condition: property
-      property: host.os
-      equals_value: Windows
+      condition: and
+      conditions:
+        - condition: property
+          property: host.arch
+          equals_value: X86_64
+        - condition: property
+          property: host.os
+          equals_value: Windows
     userMessageOnFailure: >
       Failed to create virtualenv.
+  - type: ExecuteCommand
+    command: "virtualenv -p C:\\Python311_64\\python.exe env"
+    maxTimeInSeconds: 6000
+    maxTimeBetweenOutput: 1200
+    enable_if:
+      condition: and
+      conditions:
+        - condition: property
+          property: host.arch
+          equals_value: AARCH64
+        - condition: property
+          property: host.os
+          equals_value: Windows
+    userMessageOnFailure: >
+      Failed to create virtualenv.
+
   - type: EnvironmentVariable
     variableName: ENV_PIP
     variableValue: "{{.AgentWorkingDir}}/qt/qtbridge-python/env/bin/pip"

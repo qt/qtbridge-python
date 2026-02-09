@@ -21,12 +21,24 @@ instructions:
     variableName: PYTHON3_PATH
     variableValue: "{{ index .Env \"PYTHON3.10.0-64_PATH\"}}"
     enable_if:
+      condition: and
+      conditions:
+        - condition: property
+          property: host.arch
+          equals_value: X86_64
+        - condition: property
+          property: host.os
+          equals_value: Windows
+  - type: PrependToEnvironmentVariable
+    variableName: PATH
+    variableValue: "{{.Env.PYTHON3_PATH}}\\;"
+    enable_if:
       condition: property
       property: host.os
       equals_value: Windows
   - type: PrependToEnvironmentVariable
     variableName: PATH
-    variableValue: "{{.Env.PYTHON3_PATH}}\\;"
+    variableValue: "{{.Env.PYTHON3_PATH}}\\Scripts\\;"
     enable_if:
       condition: property
       property: host.os
@@ -58,6 +70,20 @@ instructions:
           property: host.os
           equals_value: Windows
   - type: EnvironmentVariable
+    variableName: TARGET_ARCHITECTURE
+    variableValue: arm64
+    enable_if:
+      condition: and
+      conditions:
+        - condition: property
+          property: target.arch
+          equals_value: AARCH64
+        - condition: property
+          property: host.os
+          equals_value: Windows
+
+
+  - type: EnvironmentVariable
     variableName: VC_SCRIPT
     variableValue: "\\Program Files\\Microsoft Visual Studio\\2022\\Professional\\VC\\Auxiliary\\Build\\vcvars64.bat"
     enable_if:
@@ -65,7 +91,7 @@ instructions:
       property: host.compiler
       equals_value: MSVC2022
   - type: WriteFile
-    fileContents: "call \"{{.Env.VC_SCRIPT}}\" \r\ncmd /c %*"
+    fileContents: "call \"{{.Env.VC_SCRIPT}}\" {{.Env.TARGET_ARCHITECTURE}} \r\ncmd /c %*"
     filename: "c:\\users\\qt\\MSVC.bat"
     fileMode: 420
     enable_if:
