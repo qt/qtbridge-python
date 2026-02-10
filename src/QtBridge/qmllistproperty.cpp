@@ -17,25 +17,37 @@ PyQmlListProperty::PyQmlListProperty(const PySidePropertyPrivate *original, cons
     : m_propertyName(propertyName ? propertyName : "unknown")
 {
     if (original) {
-        // Copy all the important attributes from the original property
-        typeName = original->typeName;
-        pyTypeObject = original->pyTypeObject;
-        fget = original->fget;
-        fset = original->fset;
-        freset = original->freset;
-        fdel = original->fdel;
-        notify = original->notify;
-        getter_doc = original->getter_doc;
-        notifySignature = original->notifySignature;
-        doc = original->doc;
+        // Fetch all Python objects first and increment their refcounts
+        // before storing them.
+        PyObject *origPyTypeObject = original->pyTypeObject();
+        PyObject *origNotify = original->notify();
+        PyObject *origFget = original->fget;
+        PyObject *origFset = original->fset;
+        PyObject *origFreset = original->freset;
+        PyObject *origFdel = original->fdel;
 
-        // Increment reference counts for Python objects
-        Py_XINCREF(pyTypeObject);
-        Py_XINCREF(fget);
-        Py_XINCREF(fset);
-        Py_XINCREF(freset);
-        Py_XINCREF(fdel);
-        Py_XINCREF(notify);
+        // Increment reference counts for all Python objects
+        Py_XINCREF(origPyTypeObject);
+        Py_XINCREF(origNotify);
+        Py_XINCREF(origFget);
+        Py_XINCREF(origFset);
+        Py_XINCREF(origFreset);
+        Py_XINCREF(origFdel);
+
+        // Now store the values using setters for base class members
+        setTypeName(original->typeName());
+        setPyTypeObject(origPyTypeObject);
+        setFlags(original->flags());
+        setNotify(origNotify);
+        setNotifySignature(original->notifySignature());
+        setDoc(original->doc());
+
+        // Store PySidePropertyPrivate members directly
+        fget = origFget;
+        fset = origFset;
+        freset = origFreset;
+        fdel = origFdel;
+        getter_doc = original->getter_doc;
 
         qCDebug(lcQtBridge, "Created PyQmlListProperty instance from original property with name: %s",
                 m_propertyName);

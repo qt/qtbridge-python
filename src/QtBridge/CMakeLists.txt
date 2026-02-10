@@ -70,6 +70,16 @@ endif()
 
 target_compile_definitions(qtbridge PRIVATE QT_NO_CAST_FROM_ASCII)
 
+# Prevent Py_LIMITED_API redefinition warning
+# Shiboken6/PySide6 already define Py_LIMITED_API, and scikit-build-core also adds it
+# We need to check and remove duplicate definitions
+get_target_property(QTBRIDGE_COMPILE_DEFS qtbridge COMPILE_DEFINITIONS)
+if(QTBRIDGE_COMPILE_DEFS)
+    # Remove any Py_LIMITED_API definitions - keep only the one from dependencies
+    list(FILTER QTBRIDGE_COMPILE_DEFS EXCLUDE REGEX "^Py_LIMITED_API=")
+    set_target_properties(qtbridge PROPERTIES COMPILE_DEFINITIONS "${QTBRIDGE_COMPILE_DEFS}")
+endif()
+
 # Get the include directories from the imported target
 get_target_property(SHIBOKEN_INCLUDE_DIRS Shiboken6::libshiboken INTERFACE_INCLUDE_DIRECTORIES)
 get_target_property(PYSIDE_INCLUDE_DIRS PySide6::pyside6 INTERFACE_INCLUDE_DIRECTORIES)

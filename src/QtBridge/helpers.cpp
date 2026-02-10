@@ -9,6 +9,7 @@
 #include "qmllistproperty_p.h"
 
 #include <pysideproperty_p.h>
+#include <pysidepropertybase_p.h>
 #include <autodecref.h>
 #include <sbkstring.h>
 #include <gilstate.h>
@@ -130,11 +131,6 @@ PySideProperty* createPySidePropertyFromDescriptor(PyObject *classDescriptor,
     if (!classDescriptor || !PyObject_TypeCheck(classDescriptor, &PyProperty_Type))
         return nullptr;
 
-    // Create kwargs dictionary for PySideProperty constructor
-    Shiboken::AutoDecRef kwds(PyDict_New());
-    if (!kwds)
-        return nullptr;
-
     // Get getter/setter from the property descriptor
     Shiboken::AutoDecRef getter(PyObject_GetAttrString(classDescriptor, "fget"));
     Shiboken::AutoDecRef setter(PyObject_GetAttrString(classDescriptor, "fset"));
@@ -142,8 +138,7 @@ PySideProperty* createPySidePropertyFromDescriptor(PyObject *classDescriptor,
     // If we have an instance to bind to, create bound methods
     if (bindToInstance) {
         if (!getter.isNull() && getter.object() != Py_None) {
-            Shiboken::AutoDecRef boundGetter(PyObject_CallMethod(
-                getter.object(), "__get__", "OO", bindToInstance, Py_None));
+            PyObject *boundGetter = PyObject_CallMethod(getter.object(), "__get__", "OO", bindToInstance, Py_None);
 
             if (PyErr_Occurred()) {
                 logPythonException("helpers.cpp: error calling getter.__get__");
@@ -151,12 +146,11 @@ PySideProperty* createPySidePropertyFromDescriptor(PyObject *classDescriptor,
             }
 
             if (boundGetter)
-                PyDict_SetItemString(kwds.object(), "fget", boundGetter.object());
+                getter.reset(boundGetter);
         }
 
         if (!setter.isNull() && setter.object() != Py_None) {
-            Shiboken::AutoDecRef boundSetter(PyObject_CallMethod(
-                setter.object(), "__get__", "OO", bindToInstance, Py_None));
+            PyObject *boundSetter = PyObject_CallMethod(setter.object(), "__get__", "OO", bindToInstance, Py_None);
 
             if (PyErr_Occurred()) {
                 logPythonException("helpers.cpp: error calling setter.__get__");
@@ -164,19 +158,12 @@ PySideProperty* createPySidePropertyFromDescriptor(PyObject *classDescriptor,
             }
 
             if (boundSetter)
-                PyDict_SetItemString(kwds.object(), "fset", boundSetter.object());
+                setter.reset(boundSetter);
         }
-    } else {
-        // Use unbound getter/setter for type-mode properties
-        if (!getter.isNull() && getter.object() != Py_None)
-            PyDict_SetItemString(kwds.object(), "fget", getter.object());
-        if (!setter.isNull() && setter.object() != Py_None)
-            PyDict_SetItemString(kwds.object(), "fset", setter.object());
-    }
+    } // Use unbound getter/setter for type-mode properties
 
     // Determine the correct property type from annotations
     QByteArray propertyType = determinePropertyType(classDescriptor);
-    PyDict_SetItemString(kwds.object(), "type", PyUnicode_FromString(propertyType.constData()));
 
     // Get property name
     const char *propName = "<unknown>";
@@ -187,19 +174,11 @@ PySideProperty* createPySidePropertyFromDescriptor(PyObject *classDescriptor,
         }
     }
 
-    // Add notify signal signature if provided
-    if (notifySignature)
-        PyDict_SetItemString(kwds.object(), "notify",
-            PyUnicode_FromString(notifySignature));
-
     // Create PySideProperty
-    PyObject *args = PyTuple_New(0);
-    Shiboken::AutoDecRef pysidePropObj(
-        PyObject_Call(reinterpret_cast<PyObject *>(PySideProperty_TypeF()),
-              args,
-              kwds.object()));
-    Py_XDECREF(args);
-
+    Shiboken::AutoDecRef pysidePropObj(PySide::Property::create(propertyType.constData(),
+                                                                getter.object(),
+                                                                setter.object(),
+                                                                notifySignature));
     if (!pysidePropObj)
         return nullptr;
 
@@ -211,22 +190,11 @@ PySideProperty* createPySidePropertyFromDescriptor(PyObject *classDescriptor,
     if (propertyType == "QQmlListProperty<QObject>") {
         // Replace the default property private with our custom list property handler
         // but first copy all the original property data
-        PySidePropertyPrivate *originalProperty = property->d;
-        property->d = new PyQmlListProperty(originalProperty, propName);
+        PySidePropertyBase *originalProperty = property->d;
+        property->d = new PyQmlListProperty(dynamic_cast<PySidePropertyPrivate*>(originalProperty), propName);
         delete originalProperty;
 
         qCDebug(lcQtBridge, "Created custom PyQmlListProperty for %s", propName);
-    } else {
-        // Set up the property data with the determined type (for non-list properties)
-        property->d->typeName = propertyType;
-        if (!getter.isNull() && getter.object() != Py_None) {
-            property->d->fget = getter.object();
-            Py_XINCREF(getter.object());
-        }
-        if (!setter.isNull() && setter.object() != Py_None) {
-            property->d->fset = setter.object();
-            Py_XINCREF(setter.object());
-        }
     }
 
     // Return the property (caller takes ownership)

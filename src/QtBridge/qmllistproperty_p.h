@@ -6,6 +6,7 @@
 
 #include <sbkpython.h>
 #include <pysideproperty_p.h>
+#include <pysidepropertybase_p.h>
 #include <QtCore/qobject.h>
 #include <QtQml/qqmllist.h>
 
@@ -43,6 +44,11 @@ struct PyQmlListPropertyData {
  * Unlike PySide6's ListProperty which requires explicit append, count, clear functions,
  * this class automatically manages the Python list internally, so that QML can interact with it
  * seamlessly.
+ *
+ * Note: Inherits from PySidePropertyPrivate (not PySidePropertyBase like PySide6's
+ * QmlListPropertyPrivate) because PyQmlListProperty wraps existing Python @property descriptors and
+ *  needs access to their fget/fset/freset/fdel function pointers to preserve the original
+ *  property's getter/setter behavior.
  */
 class PyQmlListProperty : public PySidePropertyPrivate
 {
