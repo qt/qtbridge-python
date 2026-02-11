@@ -6,9 +6,9 @@ build-backend = "scikit_build_core.build"
 name = "QtBridge"
 version = "0.0.1"
 requires-python = ">=3.9, <=3.15"
-description = "Python package providing the backend API to interact with QML frontend"
+description = "Python package providing the backend Python API to interact with QML frontend"
 authors = [
-    { name = "Qt for Python Team", email = "pyside@qt-project.org" },
+    { name = "QtBridge Python Team", email = "qtbridge@qt.io" },
 ]
 license = "LicenseRef-Commercial OR LGPL-3.0-only"
 dependencies = [
@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [tool.scikit-build]
-cmake.minimum-version = "3.18"
+cmake.version = ">=3.18"
 cmake.source-dir = "."
 build-dir = "build/{wheel_tag}"
 build.verbose = true
@@ -49,3 +49,6 @@ dev = [
 testpaths = ["tests"]
 addopts = "-v --tb=short"
 qt_api = "pyside6"
+
+[tool.scikit-build.cmake.define]
+QT_NO_PRIVATE_MODULE_WARNING = "ON"
