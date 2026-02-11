@@ -9,7 +9,6 @@ from basiclogin import BasicLogin
 from paginatedresource import PaginatedColorUsersResource, PaginatedColorsResource
 from restservice import RestService
 from abstractresource import AbstractResource
-import rc_colorpaletteclient  # noqa: F401
 
 @qtbridge(
     module="ColorPalette",

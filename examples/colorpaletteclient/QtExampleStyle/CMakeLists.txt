@@ -1,16 +1,10 @@
 # Copyright (C) 2023 The Qt Company Ltd.
-# SPDX-License-Identifier: BSD-3-Clause
+# SPDX-License-Identifier: LicenseRef-Qt-Commercial OR BSD-3-Clause
 
 cmake_minimum_required(VERSION 3.16)
 project(qtexamplestyle LANGUAGES CXX)
 
 set(CMAKE_AUTOMOC ON)
-
-if(NOT DEFINED INSTALL_EXAMPLESDIR)
-    set(INSTALL_EXAMPLESDIR "examples")
-endif()
-
-set(INSTALL_EXAMPLEDIR "${INSTALL_EXAMPLESDIR}/quickcontrols/colorpaletteclient/QtExampleStyle")
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Quick QuickControls2)
 
@@ -28,6 +22,9 @@ qt_add_qml_module(qtexamplestyle
         Popup.qml
         UIStyle.qml
         TextField.qml
+        ToolBar.qml
+        ToolButton.qml
+        Label.qml
 )
 
 target_link_libraries(qtexamplestyle PUBLIC
@@ -45,10 +42,9 @@ if(UNIX AND NOT APPLE AND CMAKE_CROSSCOMPILING)
 endif()
 
 install(TARGETS qtexamplestyle
-    RUNTIME DESTINATION "${INSTALL_EXAMPLEDIR}"
-    BUNDLE DESTINATION "${INSTALL_EXAMPLEDIR}"
-    LIBRARY DESTINATION "${INSTALL_EXAMPLEDIR}"
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}/QtExampleStyle"
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}/QtExampleStyle"
 )
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/qmldir
-    DESTINATION "${INSTALL_EXAMPLEDIR}"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}/QtExampleStyle"
 )

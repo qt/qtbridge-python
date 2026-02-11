@@ -5,12 +5,11 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-import ColorPalette
 import QtExampleStyle
 
 pragma ComponentBehavior: Bound
 
-Item {
+Rectangle {
     id: root
     // A popup for selecting the server URL
 
@@ -23,28 +22,27 @@ Item {
     Connections {
         target: root.colorResources
         // Closes the URL selection popup once we have received data successfully
-        function onDataChanged() {
-            console.log("ServerSelection: Data changed, closing popup and emitting serverSelected")
+        function onDataUpdated() {
             fetchTester.stop()
             root.serverSelected()
         }
     }
 
+    color: UIStyle.background
 
     ListModel {
         id: server
         ListElement {
             title: qsTr("Public REST API Test Server")
-            url: "https://reqres.in"
-            icon: "qrc:/qt/qml/ColorPalette/icons/testserver.png"
+            url: "https://reqres.in/"
+            icon: "../icons/testserver.png"
         }
         ListElement {
-            title: qsTr("Qt-based REST API server")
+            title: qsTr("FastAPI-based REST API server")
             url: "http://127.0.0.1:49425"
-            icon: "qrc:/qt/qml/ColorPalette/icons/FastAPI.svg"
+            icon: "../icons/FastAPI.svg"
         }
     }
-
 
     ColumnLayout {
         anchors.fill: parent
@@ -53,15 +51,16 @@ Item {
 
         Image {
             Layout.alignment: Qt.AlignHCenter
-            source: "qrc:/qt/qml/ColorPalette/icons/qt.png"
+            source: "../icons/qt.png"
             fillMode: Image.PreserveAspectFit
-            Layout.preferredWidth: 20
+            Layout.preferredWidth: 40
         }
 
         Label {
             text: qsTr("Choose a server")
             Layout.alignment: Qt.AlignHCenter
-            font.pixelSize: 24
+            font.pixelSize: UIStyle.fontSizeXL
+            color: UIStyle.titletextColor
         }
 
         component ServerListDelegate: Rectangle {
@@ -72,12 +71,14 @@ Item {
             required property int index
 
             radius: 10
-            color: "#00000000"
+            color: UIStyle.background1
 
-            border.color: ListView.view.currentIndex === index ? "#2CDE85" : "#E0E2E7"
-            border.width: 2
+            border.color: ListView.view.currentIndex === index ?
+                              UIStyle.highlightColor :
+                              UIStyle.buttonGrayOutline
+            border.width: ListView.view.currentIndex === index ? 3 : 1
 
-            implicitWidth: 180
+            implicitWidth: 210
             implicitHeight: 100
 
             Rectangle {
@@ -89,19 +90,21 @@ Item {
 
                 width: 30
                 height: 30
-                radius: 200
-                border. color: "#E7F4EE"
-                border.width: 5
+                radius: 15
+
+                color: UIStyle.background
+                border.color: parent.border.color
+                border.width: 2
 
                 Image {
-                        anchors.centerIn: parent
-                        source: serverListDelegate.icon
-                        width: 15
-                        height: 15
-                        fillMode: Image.PreserveAspectFit
-                        smooth: true
-                    }
+                    anchors.centerIn: parent
+                    source: serverListDelegate.icon
+                    width: UIStyle.fontSizeM
+                    height: UIStyle.fontSizeM
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
                 }
+            }
 
                 Text {
                     text: parent.url
@@ -110,8 +113,8 @@ Item {
                     anchors.top: img.bottom
                     anchors.topMargin: 10
                     anchors.leftMargin: 20
-                    color: "#667085"
-                    font.pixelSize: 13
+                    color: UIStyle.textColor
+                    font.pixelSize: UIStyle.fontSizeS
                 }
                 Text {
                     text: parent.title
@@ -119,8 +122,8 @@ Item {
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: 10
-                    color: "#222222"
-                    font.pixelSize: 11
+                    color: UIStyle.textColor
+                    font.pixelSize: UIStyle.fontSizeS
                     font.bold: true
                 }
 
@@ -133,7 +136,7 @@ Item {
         ListView {
             id: serverList
             Layout.alignment: Qt.AlignHCenter
-            Layout.minimumWidth: 180 * server.count + 20
+            Layout.minimumWidth: 210 * server.count + 20
             Layout.minimumHeight: 100
             orientation: ListView.Horizontal
 
@@ -145,10 +148,11 @@ Item {
 
         Button {
             Layout.alignment: Qt.AlignHCenter
-            text: restPalette.sslSupported ? qsTr("Connect (SSL)") : qsTr("Connect")
+            text: root.restPalette.sslSupported ? qsTr("Connect (SSL)") : qsTr("Connect")
 
-            buttonColor: "#2CDE85"
-            textColor: "#FFFFFF"
+            buttonColor: UIStyle.highlightColor
+            buttonBorderColor: UIStyle.highlightBorderColor
+            textColor: UIStyle.textColor
 
             onClicked: {
                 busyIndicatorPopup.title = (serverList.currentItem as ServerListDelegate).title
@@ -165,15 +169,8 @@ Item {
 
             function test(url) {
                 root.restPalette.url = url
-                // Trigger data refresh and emit dataChanged signal via QML property toggle
-                if (root.colorResources.refreshCurrentPage()) {
-                    console.log("ServerSelection: Colors refreshed, toggling data property");
-                    root.colorResources.data = !root.colorResources.data;
-                }
-                if (root.colorUsers.refreshCurrentPage()) {
-                    console.log("ServerSelection: Users refreshed, toggling data property");
-                    root.colorUsers.data = !root.colorUsers.data;
-                }
+                root.colorResources.refreshCurrentPage()
+                root.colorUsers.refreshCurrentPage()
                 start()
             }
             onTriggered: busyIndicatorPopup.close()
@@ -202,7 +199,7 @@ Item {
                     Layout.preferredWidth: 50
                     Layout.preferredHeight: 50
                     radius: 200
-                    border. color: "#E7F4EE"
+                    border.color: UIStyle.buttonOutline
                     border.width: 5
 
                     Image {
@@ -217,7 +214,8 @@ Item {
                 Label {
                     id: titleText
                     text:""
-                    font.pixelSize: 18
+                    font.pixelSize: UIStyle.fontSizeM
+                    color: UIStyle.titletextColor
                 }
             }
 
@@ -231,7 +229,8 @@ Item {
 
                 Label {
                     text: qsTr("Testing URL")
-                    font.pixelSize: 18
+                    font.pixelSize: UIStyle.fontSizeS
+                    color: UIStyle.textColor
                 }
             }
 

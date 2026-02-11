@@ -6,6 +6,7 @@ import sys
 from dataclasses import dataclass
 from typing import Optional, Any
 
+from QtBridge import Signal
 from abstractresource import AbstractResource
 
 
@@ -18,6 +19,9 @@ class User:
 
 class BasicLogin(AbstractResource):
     """Handle user authentication using Python requests"""
+
+    userChanged = Signal()
+    loggedInChanged = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -84,6 +88,9 @@ class BasicLogin(AbstractResource):
                     # Set auth token for future requests
                     self._service.set_auth_token(token)
                     print(f"Login successful for {email}")
+                    # Emit signals to notify QML of property changes
+                    self.userChanged.emit()
+                    self.loggedInChanged.emit()
                     return True
                 else:
                     print("Login failed: No token received", file=sys.stderr)
@@ -109,6 +116,9 @@ class BasicLogin(AbstractResource):
             self._user = None
             # Clear auth token
             self._service.set_auth_token("")
+            # Emit signals to notify QML of property changes
+            self.userChanged.emit()
+            self.loggedInChanged.emit()
             print("Logout successful")
             return True
         except Exception as e:

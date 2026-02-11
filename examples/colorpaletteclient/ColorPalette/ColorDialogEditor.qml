@@ -26,17 +26,19 @@ Popup {
     function createNewColor() {
         newColor = true
         colorNameField.text = "cute green"
-        colorRGBField.text = "#41cd52"
+        currentColor = Qt.color("#41cd52")
         colorPantoneField.text = "PMS 802C"
+        colorDialog.selectedColor = currentColor
         open()
     }
 
-    function updateColor(color_id, name, color, pantone_value) {
+    function updateColor(data) {
         newColor = false
-        colorNameField.text = name
-        currentColor = color
-        colorPantoneField.text = pantone_value
-        colorId = color_id
+        colorNameField.text = data.name
+        currentColor = Qt.color(data.color)
+        colorPantoneField.text = data.pantone_value
+        colorId = data.color_id
+        colorDialog.selectedColor = currentColor
         open()
     }
 
@@ -93,8 +95,10 @@ Popup {
             id: colordialogButton
             Layout.fillWidth: true
             Layout.preferredHeight: 30
-            text: qsTr("Set Color")
-            textColor: isColorDark(buttonColor) ? "#E6E6E6" : "#191919"
+            text: qsTr("Change Color")
+            textColor: isColorDark(buttonColor) ?
+                           UIStyle.textOnDarkBackground :
+                           UIStyle.textOnLightBackground
 
             onClicked: colorDialog.open()
 
@@ -117,8 +121,9 @@ Popup {
                 Layout.fillWidth: true
                 text: colorEditor.newColor ? qsTr("Add") : qsTr("Update")
 
-                buttonColor: "#2CDE85"
-                textColor: "#FFFFFF"
+                buttonColor: UIStyle.highlightColor
+                buttonBorderColor: UIStyle.highlightBorderColor
+                textColor: UIStyle.textColor
 
                 onClicked: {
                     if (colorEditor.newColor) {

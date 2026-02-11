@@ -5,8 +5,6 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 
-import ColorPalette
-
 Window {
     id: window
     width: 500
@@ -22,7 +20,6 @@ Window {
     ServerSelection {
         id: serverview
         anchors.fill: parent
-        visible: true  // Start hidden to test ColorView directly
         onServerSelected: {colorview.visible = true; serverview.visible = false}
         colorResources: colors
         restPalette: paletteService
@@ -32,7 +29,7 @@ Window {
     ColorView {
         id: colorview
         anchors.fill: parent
-        visible: false  // Start hidden to test data display
+        visible: false
         loginService: colorLogin
         colors: colors
         colorViewUsers: users
@@ -41,7 +38,6 @@ Window {
     //! [RestService QML element]
     RestService {
         id: paletteService
-        // url: "https://reqres.in"  // Set the base URL for reqres.in API
 
         PaginatedColorUsersResource {
             id: users

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 from urllib.parse import urlencode
 
-from QtBridge import reset, bridge_instance
+from QtBridge import reset, bridge_instance, Signal
 from abstractresource import AbstractResource
 
 
@@ -34,7 +34,6 @@ class ColorUserModel:
 
     def data(self) -> list[ColorUser]:
         """Return the main data list that BridgePyTypeObjectModel will expose to QML"""
-        print("ColorUserModel data requested with", len(self._users), "users")
         return self._users
 
     def clear(self) -> None:
@@ -44,10 +43,8 @@ class ColorUserModel:
     @reset
     def set_data(self, json_list: list[dict[str, Any]]) -> None:
         """Set users from JSON data using @reset decorator for proper model updates"""
-        print("ColorUserModel set_data called with", len(json_list), "users")
         self._users.clear()
         for item in json_list:
-            print("Processing user item:", item)
             try:
                 user = ColorUser(
                     id=int(item["id"]),
@@ -105,6 +102,10 @@ class PaginatedResource(AbstractResource):
     """This class manages a simple paginated CRUD resource,
        where the resource is a paginated list of JSON items."""
 
+    dataUpdated = Signal()
+    pageUpdated = Signal()
+    pagesUpdated = Signal()
+
     def __init__(self) -> None:
         super().__init__()
         # The total number of pages as reported by the server responses
@@ -112,7 +113,6 @@ class PaginatedResource(AbstractResource):
         # The default page we request if the user hasn't set otherwise
         self._current_page: int = 1
         self._path: str = ""
-        self._data_updated: bool = False
 
     def _clear_model(self) -> None:
         """Override in subclasses to clear the specific model"""
@@ -121,15 +121,6 @@ class PaginatedResource(AbstractResource):
     def _populate_model(self, json_list: list[dict[str, Any]]) -> None:
         """Override in subclasses to populate the specific model"""
         pass
-
-    @property
-    def data(self) -> bool:
-        """Data property that triggers signal when data changes"""
-        return self._data_updated
-
-    @data.setter
-    def data(self, value: bool) -> None:
-        self._data_updated = value
 
     @property
     def path(self) -> str:
@@ -152,6 +143,7 @@ class PaginatedResource(AbstractResource):
         if self._current_page == page or page < 1:
             return
         self._current_page = page
+        self.pageUpdated.emit()
         self.refreshCurrentPage()
 
     def refreshCurrentPage(self) -> bool:
@@ -182,9 +174,10 @@ class PaginatedResource(AbstractResource):
             self._populate_model(json_data.get("data", []))
             self._pages = int(json_data.get("total_pages", 0))
             self._current_page = int(json_data.get("page", 1))
-            # NOTE: Setting self.data from Python doesn't trigger signals for bridge_type
-            # Signal emission must come from QML property write or explicit C++ call
             print(f"Refreshed page {self._current_page} of {self._pages}")
+            self.pageUpdated.emit()
+            self.pagesUpdated.emit()
+            self.dataUpdated.emit()
         except (ValueError, KeyError) as e:
             print(f"Error parsing pagination data: {e}", file=sys.stderr)
             self.refreshRequestFailed()
@@ -198,7 +191,9 @@ class PaginatedResource(AbstractResource):
         else:
             # Refresh failed and we were already on page 1 => clear data
             self._pages = 0
+            self.pagesUpdated.emit()
             self._clear_model()
+            self.dataUpdated.emit()
 
     def update(self, data: dict[str, Any], item_id: int) -> None:
         """Update an existing item"""
@@ -247,22 +242,13 @@ class PaginatedColorUsersResource(PaginatedResource):
     def __init__(self) -> None:
         super().__init__()
         self._model = ColorUserModel()
-        bridge_instance(self._model, name="ColorUserModel")
-
-    @property
-    def model(self) -> ColorUserModel:
-        """Return the Python model"""
-        return self._model
+        bridge_instance(self._model, name="ColorUserModel", uri="ColorPalette")
 
     def _clear_model(self) -> None:
         self._model.clear()
 
     def _populate_model(self, json_list: list[dict[str, Any]]) -> None:
         self._model.set_data(json_list)
-
-    def avatarForEmail(self, email: str) -> str:
-        """Get avatar URL for a given email"""
-        return self._model.avatarForEmail(email)
 
 
 class PaginatedColorsResource(PaginatedResource):
@@ -271,12 +257,7 @@ class PaginatedColorsResource(PaginatedResource):
     def __init__(self) -> None:
         super().__init__()
         self._model = ColorModel()
-        bridge_instance(self._model, name="ColorModel")
-
-    @property
-    def model(self) -> ColorModel:
-        """Return the Python model"""
-        return self._model
+        bridge_instance(self._model, name="ColorModel", uri="ColorPalette")
 
     def _clear_model(self) -> None:
         self._model.clear()

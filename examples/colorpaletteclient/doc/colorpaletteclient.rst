@@ -25,13 +25,13 @@ At start the application presents the options for the color palette server to co
 with. The predefined options are:
 
 * ``https://reqres.in``, a publicly available REST API test service
-* A Qt-based REST API server example in ``QtHttpServer``
+* A FastAPI-based REST API server example
 
 Once selected, the RESTful API client issues a test HTTP GET to the color API
 to check if the service is accessible.
 
 One major difference between the two predefined API options is that the
-Qt-based REST API server example is a stateful application which allows
+FastAPI-based REST API server example is a stateful application which allows
 modifying colors, whereas the ``reqres.in`` is a stateless API testing service.
 In other words, when using the ``reqres.in`` backend, modifying the colors has
 no lasting impact.

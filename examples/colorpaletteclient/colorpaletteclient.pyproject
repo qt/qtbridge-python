@@ -5,7 +5,6 @@
         "main.py",
         "paginatedresource.py",
         "restservice.py",
-        "colorpaletteclient.qrc",
         "ColorPalette/ColorDialogDelete.qml",
         "ColorPalette/ColorDialogEditor.qml",
         "ColorPalette/ColorView.qml",
@@ -15,7 +14,6 @@
         "QtExampleStyle/Button.qml",
         "QtExampleStyle/Popup.qml",
         "QtExampleStyle/TextField.qml",
-        "QtExampleStyle/UIStyle.qml",
-        "colorpaletteclient.qrc"
+        "QtExampleStyle/UIStyle.qml"
     ]
 }

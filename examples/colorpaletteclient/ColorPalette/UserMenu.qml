@@ -9,7 +9,6 @@ import QtQuick.Layouts
 import QtQuick.Effects
 
 import QtExampleStyle
-import ColorPalette
 
 Popup {
     id: userMenu
@@ -20,33 +19,43 @@ Popup {
     width: 280
     height: 270
 
-    ColumnLayout {
+    background: Item {}
+
+    Rectangle {
+        radius: 8
+        border.width: 0
+        color: UIStyle.background
+
         anchors.fill: parent
 
         ListView {
             id: userListView
+            anchors.fill: parent
+            anchors.leftMargin: 10
+            anchors.rightMargin: 5
+            anchors.topMargin: 5
+            anchors.bottomMargin: 2
 
-            model: userMenu.userMenuUsers.model  // Access model through resource's property
-            spacing: 5
+            model: ColorUserModel
+            spacing: 7
             footerPositioning: ListView.PullBackFooter
             clip: true
 
             Layout.fillHeight: true
             Layout.fillWidth: true
 
-            delegate: Rectangle {
+            delegate: Item {
                 id: userInfo
-
-                required property string email
-                required property string avatar
 
                 height: 30
                 width: userListView.width
 
+                required property int id
+                required property string avatar
+                required property string email
+                readonly property bool logged: (email === userMenu.userLoginService.user)
 
-                readonly property bool logged: (email === loginService.user)
-
-                Rectangle {
+                Item {
                     id: userImageCliped
                     anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
@@ -57,12 +66,14 @@ Popup {
                         id: userImage
                         anchors.fill: parent
                         source: userInfo.avatar
-                        visible: false
+                        visible: true
+                        cache: false
+                        asynchronous: true
                     }
 
                     Image {
                         id: userMask
-                        source: "qrc:/qt/qml/ColorPalette/icons/userMask.svg"
+                        source: "../icons/userMask.svg"
                         anchors.fill: userImage
                         anchors.margins: 4
                         visible: false
@@ -82,6 +93,7 @@ Popup {
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.margins: 5
                     text: userInfo.email
+                    color: UIStyle.textColor
                     font.bold: userInfo.logged
                 }
 
@@ -96,18 +108,12 @@ Popup {
 
                     onClicked: {
                         if (userInfo.logged) {
-                            if (userMenu.userLoginService.logout()) {
-                                // Trigger property read to update UI
-                                userMenu.userLoginService.loggedIn = userMenu.userLoginService.loggedIn
-                            }
+                            userMenu.userLoginService.logout()
                         } else {
                             //! [Login]
-                            if (userMenu.userLoginService.login({"email" : userInfo.email,
+                            userMenu.userLoginService.login({"email" : userInfo.email,
                                                 "password" : "apassword",
-                                                "id" : userInfo.id})) {
-                                // Trigger property read to update UI
-                                userMenu.userLoginService.loggedIn = userMenu.userLoginService.loggedIn
-                            }
+                                                "id" : userInfo.id})
                             //! [Login]
                             userMenu.close()
                         }
@@ -141,5 +147,14 @@ Popup {
                 }
             }
         }
+    }
+
+    Rectangle {
+        radius: 8
+        border.color: UIStyle.buttonOutline
+        border.width: 2
+        color: "transparent"
+
+        anchors.fill: parent
     }
 }
