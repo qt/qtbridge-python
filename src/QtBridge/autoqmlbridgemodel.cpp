@@ -60,6 +60,24 @@ bool convertVariantToModel(QVariant *qvariant)
     return false;
 }
 
+// Returns true if the Python instance's _qtbridge_suppress_notify flag is set,
+// clearing it at the same time.  The Python auto-property setter sets this flag.
+static bool consumeSuppressNotifyFlag(PyObject *pyInstance)
+{
+    if (!pyInstance)
+        return false;
+    PyObject *flag = PyObject_GetAttrString(pyInstance, "_qtbridge_suppress_notify");
+    if (!flag) {
+        PyErr_Clear();
+        return false;
+    }
+    const bool suppressed = PyObject_IsTrue(flag) == 1;
+    Py_DECREF(flag);
+    if (suppressed)
+        PyObject_SetAttrString(pyInstance, "_qtbridge_suppress_notify", Py_False);
+    return suppressed;
+}
+
 // Handle WriteProperty call in qt_metacall
 int handleWriteProperty(AutoQmlBridgeModel *model, int id, void **args, PySideProperty *property)
 {
@@ -100,8 +118,10 @@ int handleWriteProperty(AutoQmlBridgeModel *model, int id, void **args, PySidePr
                     // this uses the registered metatype converters
                     property->d->metaCall(model->pythonInstance(), QMetaObject::WriteProperty, convertedArgs);
 
-                    // Emit the notify signal after property write
-                    model->emitPropertyChanged(id);
+                    // Emit the notify signal after property write, unless the
+                    // Python setter already did so.
+                    if (!consumeSuppressNotifyFlag(model->pythonInstance()))
+                        model->emitPropertyChanged(id);
                     return -1;
                 }
             }
@@ -120,8 +140,10 @@ int handleWriteProperty(AutoQmlBridgeModel *model, int id, void **args, PySidePr
         void *convertedArgs[1] = { &converted };
         property->d->metaCall(model->pythonInstance(), QMetaObject::WriteProperty, convertedArgs);
 
-        // Emit the notify signal after property write
-        model->emitPropertyChanged(id);
+        // Emit the notify signal after property write, unless the Python setter
+        // already did so.
+        if (!consumeSuppressNotifyFlag(model->pythonInstance()))
+            model->emitPropertyChanged(id);
         return -1;
     }
     // If no conversion was needed, return 0 to indicate fall through to normal handling
@@ -695,9 +717,11 @@ int AutoQmlBridgeModel::qt_metacall(QMetaObject::Call call, int id, void **args)
             handleReadProperty(this, id, args);
         }
 
-        // For WriteProperty, emit the notify signal after the property has been set
+        // For WriteProperty, emit the notify signal after the property has been set,
+        // unless the Python setter already did so.
         if (call == QMetaObject::WriteProperty) {
-            emitPropertyChanged(id);
+            if (!consumeSuppressNotifyFlag(m_backend))
+                emitPropertyChanged(id);
         }
 
         return -1;

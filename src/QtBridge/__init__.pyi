@@ -28,7 +28,7 @@ class DataProvider(Protocol):
     ...
 
 @overload
-def bridge_instance(instance: DataProvider, name: str, uri: str = "backend") -> None:
+def bridge_instance(instance: DataProvider, name: str, uri: str = "backend", auto_properties: bool = True, exclude_properties: set[str] | None = None) -> None:
     """
     Registers a Python class instance as a QML singleton bridge.
 
@@ -43,6 +43,12 @@ def bridge_instance(instance: DataProvider, name: str, uri: str = "backend") -> 
     uri : str, optional
         The QML module URI under which the singleton will be registered.
         Defaults to "backend".
+    auto_properties : bool, optional
+        If True, automatically converts simple __init__ attributes to QML properties.
+        Defaults to True.
+    exclude_properties : set[str] | None, optional
+        Set of attribute names to exclude from auto-property generation.
+        Only used when auto_properties is True. Defaults to None.
 
     Example
     -------
@@ -73,7 +79,7 @@ def bridge_instance(instance: DataProvider, name: str, uri: str = "backend") -> 
     ...
 
 @overload
-def bridge_instance(obj: Any, name: str, uri: str = "backend") -> None:
+def bridge_instance(obj: Any, name: str, uri: str = "backend", auto_properties: bool = True, exclude_properties: set[str] | None = None) -> None:
     """
     Exposes Python containers (list, tuple, or numpy.ndarray) as a QML
     singleton instance.
@@ -93,6 +99,12 @@ def bridge_instance(obj: Any, name: str, uri: str = "backend") -> None:
     uri : str, optional
         The QML module URI under which the singleton will be registered.
         Defaults to "backend".
+    auto_properties : bool, optional
+        If True, automatically converts simple __init__ attributes to QML properties.
+        Defaults to True.
+    exclude_properties : set[str] | None, optional
+        Set of attribute names to exclude from auto-property generation.
+        Only used when auto_properties is True. Defaults to None.
 
     Example
     -------
@@ -119,7 +131,7 @@ def bridge_instance(obj: Any, name: str, uri: str = "backend") -> None:
     """
     ...
 
-def bridge_type(type: type, uri: str | None = None, version: str | None = None, name: str | None = None, default_property: str | None = None) -> None:
+def bridge_type(type: type, uri: str | None = None, version: str | None = None, name: str | None = None, default_property: str | None = None, auto_properties: bool = True, exclude_properties: set[str] | None = None) -> None:
     """
     Registers a Python class as a QML type.
 
@@ -137,6 +149,12 @@ def bridge_type(type: type, uri: str | None = None, version: str | None = None, 
     default_property : str, optional
         The name of a property in the Python class to be treated as the
         default property in QML.
+    auto_properties : bool, optional
+        When True (the default), plain ``self.x = ...`` assignments in
+        ``__init__`` are automatically converted into QML-visible properties
+        with change-notification signals. Set to False to opt out.
+    exclude_properties : set of str, optional
+        Names of attributes to exclude from auto-property generation.
     """
     ...
 

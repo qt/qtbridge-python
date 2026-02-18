@@ -40,9 +40,14 @@ def __getattr__(name: str) -> Any:
         from .QtBridge import bridge_instance
         globals()["cpython_bridge_instance"] = bridge_instance
         return bridge_instance
+    if name == "cpython_bridge_type":
+        _setup_dependencies()
+        from .QtBridge import bridge_type as cpython_bridge_type
+        globals()["cpython_bridge_type"] = cpython_bridge_type
+        return cpython_bridge_type
     if name == "bridge_type":
         _setup_dependencies()
-        from .QtBridge import bridge_type
+        from .qtbridge_py.autoqmlbridge import bridge_type
         globals()["bridge_type"] = bridge_type
         return bridge_type
     if name == "insert":
@@ -92,4 +97,4 @@ def __getattr__(name: str) -> Any:
         return bridge_instance
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
-__all__ = ["bridge_instance", "insert", "remove", "move", "edit", "reset", "complete", "Signal", "qtbridge", "cpython_bridge_instance"]
+__all__ = ["bridge_instance", "bridge_type", "insert", "remove", "move", "edit", "reset", "complete", "Signal", "qtbridge", "cpython_bridge_instance", "cpython_bridge_type"]
