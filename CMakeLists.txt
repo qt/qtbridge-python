@@ -17,7 +17,17 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g3 -O0")
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g3 -O0")
     add_definitions(-DDEBUG_BUILD)
+    set(QTBRIDGE_DEBUG_BUILD_PY "True")
+else()
+    set(QTBRIDGE_DEBUG_BUILD_PY "False")
 endif()
+
+# Generate Python build configuration (mirrors C++ DEBUG_BUILD define)
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/QtBridge/qtbridge_py/_build_config.py.in"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/QtBridge/qtbridge_py/_build_config.py"
+    @ONLY
+)
 
 find_package(Python COMPONENTS Interpreter Development.SABIModule REQUIRED)
 message(STATUS "Using Stable ABI with version ${SKBUILD_SABI_VERSION}")

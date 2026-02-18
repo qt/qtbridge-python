@@ -13,6 +13,12 @@ import inspect
 import textwrap
 from typing import Any, Set, Dict, Optional
 
+try:
+    from ._build_config import _logger
+except ImportError:
+    import logging
+    _logger = logging.getLogger("qtbridge-python")
+
 class InitAttributeFinder(ast.NodeVisitor):
     """AST visitor to find all self.attribute assignments in __init__"""
 
@@ -95,6 +101,8 @@ def find_init_attributes(cls: type) -> Dict[str, Any]:
         # source with inconsistent indentation for classes defined inside other
         # functions
         cls_name = _get_cls_name(cls)
+        _logger.debug("find_init_attributes: could not parse source for %s, "
+                  "skipping auto-property generation", cls_name)
         return {}
 
 
@@ -109,6 +117,8 @@ def augment_class_with_auto_properties(cls: type, exclude: Optional[Set[str]] = 
     exclude = exclude or set()
     attributes = find_init_attributes(cls)
     cls_name = _get_cls_name(cls)
+    _logger.debug("augment_class_with_auto_properties: %s — found raw attributes: %s",
+                  cls_name, list(attributes.keys()))
 
     # Filter out excluded attributes, private names (starting with '_'),
     # and attributes that already have an explicit property descriptor on the class.
@@ -154,16 +164,17 @@ def augment_class_with_auto_properties(cls: type, exclude: Optional[Set[str]] = 
                     self.__dict__['_qtbridge_suppress_notify'] = True
                     return
                 setattr(self, priv_name, value)
-                signal = getattr(self, sig_name, None)
-                if signal is not None and hasattr(signal, 'emit'):
-                    try:
-                        signal.emit()
-                    except RuntimeError:
-                        print(f"Warning: Failed to emit signal '{sig_name}' for "
-                              f"{cls_name}.{attr_name}. This can happen if the signal was not "
-                               " properly registered or if the object is being modified during "
-                               "application shutdown.")
 
+                # Emit changed signal if value actually changed
+                if old_value != value:
+                    signal = getattr(self, sig_name, None)
+                    if signal is not None and hasattr(signal, 'emit'):
+                        try:
+                            _logger.debug("Emitting signal: %s.%s for attribute change", cls_name, sig_name)
+                            signal.emit()
+                        except RuntimeError:
+                            _logger.debug("signal.emit() skipped for %s.%s: object not yet registered",
+                                        cls_name, sig_name)
                 # Tell C++ WriteProperty not to double-fire emitPropertyChanged
                 self.__dict__['_qtbridge_suppress_notify'] = True
             return setter
@@ -175,6 +186,7 @@ def augment_class_with_auto_properties(cls: type, exclude: Optional[Set[str]] = 
 
         # Set the property on the class
         setattr(cls, attr_name, prop)
+        _logger.debug("Created auto_property: %s.%s (default=%r)", cls_name, attr_name, default_value)
 
     # Mark class as augmented to avoid duplicate processing
     if isinstance(cls, type):

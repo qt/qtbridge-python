@@ -8,6 +8,12 @@ from PySide6.QtQml import qmlRegisterSingletonInstance
 
 from .auto_property import augment_class_with_auto_properties
 
+try:
+    from ._build_config import _logger
+except ImportError:
+    import logging
+    _logger = logging.getLogger("qtbridge-python")
+
 _bridge_map = {}
 
 
@@ -28,11 +34,14 @@ def bridge_type(type, uri="backend", version="1.0", name=None, default_property=
 
 
 def bridge_instance(obj, name, uri="backend", auto_properties=True, exclude_properties=None):
+    _logger.debug("bridge_instance: name=%s, uri=%s, auto_properties=%s", name, uri, auto_properties)
     # Handle numpy arrays
     if "numpy" in type(obj).__module__:
+        _logger.debug("Converting numpy object to list for QML model")
         obj = obj.tolist()
 
     if isinstance(obj, (list, tuple)):
+        _logger.debug("Registering QRangeModel for list/tuple as singleton: %s", name)
         model_instance = QRangeModel(obj)
         qmlRegisterSingletonInstance(
             type(model_instance), uri, 1, 0, name, model_instance)
@@ -41,9 +50,9 @@ def bridge_instance(obj, name, uri="backend", auto_properties=True, exclude_prop
     elif hasattr(obj, "__class__"):
         if auto_properties:
             obj_class = type(obj)
-
             # Only augment if not already done (check for marker attribute)
             if not hasattr(obj_class, '_qtbridge_auto_props_applied'):
+                _logger.debug("Augmenting class %s with auto properties", obj_class.__name__)
                 augment_class_with_auto_properties(obj_class, exclude=exclude_properties)
 
             # Migrate existing plain instance attributes to their auto-property backing
@@ -60,6 +69,7 @@ def bridge_instance(obj, name, uri="backend", auto_properties=True, exclude_prop
                                       attr_name, private_name, type(obj).__name__)
 
         from QtBridge import cpython_bridge_instance
+        _logger.debug("Registering Python object as QML singleton: %s", name)
         cpython_bridge_instance(obj, name=name, uri=uri)
 
     else:

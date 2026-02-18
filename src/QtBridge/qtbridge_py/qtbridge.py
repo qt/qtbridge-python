@@ -11,6 +11,12 @@ from PySide6.QtCore import QUrl
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
+try:
+    from ._build_config import _logger
+except ImportError:
+    import logging
+    _logger = logging.getLogger("qtbridge-python")
+
 def qtbridge(
     module: str | None = None,
     type_name: str | None = None,
@@ -23,6 +29,7 @@ def qtbridge(
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
+            _logger.debug("Starting qtbridge application for function: %s", func.__name__)
 
             app = QGuiApplication.instance()
             if not app:
@@ -32,6 +39,7 @@ def qtbridge(
 
             if import_paths:
                 for path in import_paths:
+                    _logger.debug("Adding QML import path: %s", path)
                     engine.addImportPath(path)
             engine.addImportPath(sys.path[0])
 
@@ -44,20 +52,26 @@ def qtbridge(
                 if not qml_path.is_absolute():
                     qml_path = caller_file / qml_path
 
+                _logger.debug("Loading QML file: %s", qml_path)
                 engine.load(QUrl.fromLocalFile(str(qml_path)))
 
             elif module and type_name:
+                _logger.debug("Loading QML module: %s, type: %s", module, type_name)
                 engine.loadFromModule(module, type_name)
             elif module:
+                _logger.debug("Loading QML module: %s", module)
                 engine.loadFromModule('.', module)
             else:
                 raise ValueError("Either 'qml_file' or 'module' must be specified.")
 
             if not engine.rootObjects():
+                _logger.error("No root QML objects loaded, exiting")
                 del engine
                 sys.exit(-1)
 
+            _logger.debug("Entering event loop")
             result = app.exec()
+            _logger.debug("Event loop exited with code: %s", result)
             del engine
             return result
         return wrapper

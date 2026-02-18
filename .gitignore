@@ -103,3 +103,6 @@ ui_*.h
 # Valgrind
 valgrind-out.txt
 *.supp
+
+# generated files
+_build_config.py
