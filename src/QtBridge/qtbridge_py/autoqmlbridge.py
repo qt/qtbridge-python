@@ -3,7 +3,10 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QRangeModel
+from PySide6.QtCore import (QRangeModel,
+                            QJsonDocument,
+                            QJsonParseError,
+                            QByteArray)
 from PySide6.QtQml import qmlRegisterSingletonInstance
 
 from .auto_property import augment_class_with_auto_properties
@@ -15,6 +18,16 @@ except ImportError:
     _logger = logging.getLogger("qtbridge-python")
 
 _bridge_map = {}
+
+def is_json(text: str) -> bool:
+    """Checks whether the given object is a valid JSON text."""
+    if not isinstance(text, str):
+        return False
+
+    error = QJsonParseError()
+    QJsonDocument.fromJson(QByteArray(text.encode()), error)
+
+    return error.error == QJsonParseError.ParseError.NoError
 
 
 def bridge_type(type, uri="backend", version="1.0", name=None, default_property=None,
@@ -35,10 +48,21 @@ def bridge_type(type, uri="backend", version="1.0", name=None, default_property=
 
 def bridge_instance(obj, name, uri="backend", auto_properties=True, exclude_properties=None):
     _logger.debug("bridge_instance: name=%s, uri=%s, auto_properties=%s", name, uri, auto_properties)
+
     # Handle numpy arrays
     if "numpy" in type(obj).__module__:
         _logger.debug("Converting numpy object to list for QML model")
         obj = obj.tolist()
+
+    if (is_json(obj)):
+        ## Note: QRangeModel approach is preferred because:
+        #  - model: UserData works directly — no .data indirection needed
+        #  - Less Python boilerplate (no extra class)
+        #  - QML usage is identical with the list/tuple objects below
+        #  - toObjectList() preserves nested dicts, so modelData.contact.email still works
+
+        doc = QJsonDocument.fromJson(QByteArray(obj.encode()))
+        obj = doc.array().toObjectList()
 
     if isinstance(obj, (list, tuple)):
         _logger.debug("Registering QRangeModel for list/tuple as singleton: %s", name)
