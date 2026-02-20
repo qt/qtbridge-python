@@ -20,20 +20,15 @@ class DataPoint:
 
 class ChartDataModel:
     def __init__(self, series_data: List[DataPoint]):
-        self._series = series_data
+        self.series = series_data
 
     def data(self) -> List[DataPoint]:
-        return self._series
-
-    @property
-    def series(self) -> List[DataPoint]:
-        """List of data points for this series"""
-        return self._series
+        return self.series
 
     def get_point(self, index: int) -> dict:
         """Get a data point at the specified index as a dictionary"""
-        if 0 <= index < len(self._series):
-            point = self._series[index]
+        if 0 <= index < len(self.series):
+            point = self.series[index]
             return {"x": point.x, "y": point.y}
         return {"x": -1, "y": -1}
 
