@@ -31,6 +31,11 @@ def qtbridge(
         def wrapper(*args, **kwargs):
             _logger.debug("Starting qtbridge application for function: %s", func.__name__)
 
+            # Resolve caller location early so import_paths and qml_file can be
+            # interpreted relative to the *script* rather than the CWD.
+            caller_frame = inspect.stack()[1]
+            caller_dir = Path(caller_frame.filename).resolve().parent
+
             app = QGuiApplication.instance()
             if not app:
                 app = QGuiApplication(sys.argv)
@@ -39,18 +44,19 @@ def qtbridge(
 
             if import_paths:
                 for path in import_paths:
-                    _logger.debug("Adding QML import path: %s", path)
-                    engine.addImportPath(path)
-            engine.addImportPath(sys.path[0])
+                    resolved = Path(path)
+                    if not resolved.is_absolute():
+                        resolved = (caller_dir / resolved).resolve()
+                    _logger.debug("Adding QML import path: %s", resolved)
+                    engine.addImportPath(str(resolved))
+            # Always add the script's own directory so sibling qmldirs are found.
+            engine.addImportPath(str(caller_dir))
 
             # --- Load QML content ---
             if qml_file:
-                caller_frame = inspect.stack()[1]
-                caller_file = Path(caller_frame.filename).resolve().parent
-
                 qml_path = Path(qml_file)
                 if not qml_path.is_absolute():
-                    qml_path = caller_file / qml_path
+                    qml_path = caller_dir / qml_path
 
                 _logger.debug("Loading QML file: %s", qml_path)
                 engine.load(QUrl.fromLocalFile(str(qml_path)))

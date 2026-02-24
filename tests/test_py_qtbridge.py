@@ -74,9 +74,8 @@ class TestQtBridge:
         (module_dir / "qmldir").write_text("dummyType 1.0 dummyType.qml\n")
         (module_dir / "dummyType.qml").write_text(TEST_QML_METHOD)
 
-        sys.path.insert(0, str(tmp_path))
-
-        @qtbridge(module="testPath.DummyModule", type_name="dummyType")
+        @qtbridge(module="testPath.DummyModule", type_name="dummyType",
+                  import_paths=[str(tmp_path)])
         def dummy_func():
             pass
 
@@ -84,7 +83,6 @@ class TestQtBridge:
         QTimer.singleShot(0, lambda: QCoreApplication.exit(42))
 
         result = dummy_func()
-        sys.path.remove(str(tmp_path))
         assert result == 42
 
     def test_qtbridge_loads_qml_relative_path(self, qtbot, tmp_path):
