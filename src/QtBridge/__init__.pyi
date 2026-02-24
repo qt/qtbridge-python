@@ -20,6 +20,12 @@ class Signal:
 class DataProvider(Protocol):
     """
     Defines the required interface for data models.
+
+    The ``data()`` method can return:
+    - ``list[str]``, ``list[int]``, etc. — for simple list models
+    - ``List[MyDataClass]`` — for dataclass list models
+    - ``list[dict]`` — for dictionary list models
+    - ``polars.DataFrame`` — for table/DataFrame models (used with TableView)
     """
     def data(self) -> Any:
         """

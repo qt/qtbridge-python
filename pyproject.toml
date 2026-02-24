@@ -44,6 +44,11 @@ dev = [
     "black",
     "flake8"
 ]
+# this enables pip install -e ".[table]"
+table = [
+    "polars"
+]
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

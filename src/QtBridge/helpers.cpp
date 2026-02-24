@@ -445,6 +445,12 @@ DataType inferDataType(PyObject *instance)
                 qCDebug(lcQtBridge, "inferDataType: Type hint suggests List");
                 return DataType::List;
             }
+
+            // Check for DataFrame type hints (polars.DataFrame, pl.DataFrame, etc.)
+            if (typeString.contains("DataFrame")) {
+                qCDebug(lcQtBridge, "inferDataType: Type hint suggests Table (DataFrame)");
+                return DataType::Table;
+            }
         }
     }
 
@@ -471,15 +477,26 @@ DataType inferDataType(PyObject *instance)
         return DataType::List;
     }
 
-    // Check for pandas DataFrame (if pandas is available)
-    // We check for the type name since we don't want to import pandas just for this
-    // TODO: This is not implemented yet
+    // Check for DataFrame (polars, pandas, etc.)
+    // We check for the type name and module to identify the DataFrame library
     PyObject *dataType = PyObject_Type(data);
     if (dataType) {
         Shiboken::AutoDecRef typeName(PyObject_GetAttrString(dataType, "__name__"));
         if (typeName.object() && PyUnicode_Check(typeName.object())) {
-            if (PyUnicode_CompareWithASCIIString(typeName.object(), "DataFrame") == 0)
+            if (PyUnicode_CompareWithASCIIString(typeName.object(), "DataFrame") == 0) {
+                Shiboken::AutoDecRef moduleName(PyObject_GetAttrString(dataType, "__module__"));
+                if (moduleName.object() && PyUnicode_Check(moduleName.object())) {
+                    const char *mod = Shiboken::String::toCString(moduleName.object());
+                    if (mod && (std::strcmp(mod, "polars") == 0 || std::strcmp(mod, "pandas") == 0)) {
+                        qCDebug(lcQtBridge, "inferDataType: Detected DataFrame from module '%s'", mod);
+                        Py_XDECREF(dataType);
+                        return DataType::Table;
+                    }
+                }
+                // Unknown DataFrame-like object, still treat as Table
+                Py_XDECREF(dataType);
                 return DataType::Table;
+            }
         }
         Py_XDECREF(dataType);
     }
