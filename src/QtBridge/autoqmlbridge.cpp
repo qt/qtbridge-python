@@ -55,10 +55,13 @@ as a QAbstractItemModel, the function also does the following:
     from the backend object, a {property_name}Changed signal is created and registered in the
     QMetaObject. The signal is emitted whenever the property value changes using the corresponding
     setter. Properties that have append functions are registered as ListProperties in QML
-3. This file enforces explicit requirements that the user should implement a `data()` and from the
-    type of the data returned (list for one dimensional data and pandas Dataframe for tabular data).
-    Based on the data returned, the implementation of the various virtual methods of
-    QAbstractItemModel should be done.
+3. If the user implements a `data()` method, its return type hint is used to infer the data type
+    (list for one-dimensional data, list[DataClass] for tabular data), which drives the
+    implementation of the various virtual methods of QAbstractItemModel. The `data()` method is
+    optional: if absent (or its return type cannot be inferred), the object is registered with
+    DataType::Unknown and works fine as a plain QML singleton exposing only methods and properties.
+    An error is only raised if the object is subsequently used as a QML view model (e.g. as
+    ListView.model) without a compatible data() implementation.
 */
 
 namespace {
@@ -454,29 +457,12 @@ PyObject *AutoQmlBridgePrivate::bridge_instance(PyObject *self, PyObject *args, 
         return nullptr;
     }
 
-    // Check if the user data model has a data() method
-    if (!PyObject_HasAttrString(instance, DATA_METHOD_NAME)) {
-        PyErr_SetString(PyExc_TypeError,
-                        "The class wrapped with bridge_instance must have a data() method that "
-                        "returns the data to be passed to QML");
-        QtBridges::logPythonException("bridge_instance");
-        return nullptr;
-    }
-
-    // Try to infer data type from the instance
+    // Try to infer data type from the instance's data() method (if it exists).
+    // data() is optional. If absent or its return type cannot be inferred the object
+    // is registered with DataType::Unknown and works fine as a plain QML singleton that
+    // exposes only methods and properties. A descriptive error is only raised later if
+    // the object is actually used as a QML view model (e.g. ListView.model).
     QtBridges::DataType dataType = inferDataType(instance);
-    if (dataType == QtBridges::DataType::Unknown) {
-        PyErr_SetString(PyExc_TypeError,
-                      "Could not infer data type from data() method. "
-                      "Please add a return type hint to your data() method, e.g.:\n"
-                      "  def data(self) -> list[str]: ...  # For simple lists\n"
-                      "  def data(self) -> List[MyDataClass]: ...  # For dataclass lists\n\n"
-                      "Supported return types:\n"
-                      "  - list[str], list[int], list[float] (primitive lists)\n"
-                      "  - List[DataClass], list[DataClass] (dataclass lists)");
-        QtBridges::logPythonException("bridge_instance");
-        return nullptr;
-    }
 
     // Log the actual inferred type name
     const char* inferredTypeName = "Unknown";
@@ -695,12 +681,18 @@ int initAutoQmlBridge(PyObject *module)
         (PyCFunction)QtBridges::AutoQmlBridgePrivate::bridge_instance,
         METH_VARARGS | METH_KEYWORDS,
         "bridge_instance(instance: object, name: str) -> None\n\n"
-        "Adapts a Python object as a QAbstractItemModel for QML.\n\n"
+        "Registers a Python object as a QML singleton, exposing its methods, properties\n"
+        "and signals to QML.\n\n"
         "Args:\n"
-        "    instance: A Python object with a data() method that returns the model data\n"
+        "    instance: A Python object to expose to QML\n"
         "    name: The name to use when registering with QML\n\n"
         "Note:\n"
-        "    Use type hints on the data() method to help infer the data type."
+        "    If the object also needs to act as a QML view model (e.g. ListView.model),\n"
+        "    add a data() method with a return type hint so the data type can be inferred:\n"
+        "      def data(self) -> list[str]: ...  # simple list\n"
+        "      def data(self) -> List[MyDataClass]: ...  # dataclass list\n"
+        "    Without data(), the object is still fully usable for methods and properties;"
+        " the error is only raised when QML tries to use it as a model."
     };
 
     static PyMethodDef bridge_typeDef = {
@@ -716,7 +708,9 @@ int initAutoQmlBridge(PyObject *module)
         "    version: QML module version (default: '1.0')\n"
         "    name: Name to use in QML (default: type name)\n"
         "    default_property: Property name for QML default property (optional)\n\n"
-        "The type must have a data() method for QML model compatibility."
+        "A data() method with a return type hint is required only when the type is used\n"
+        "as a QML view model (e.g. ListView.model). For plain property/method access no\n"
+        "data() method is needed."
     };
 
     PyObject *bridge_instanceFunc = PyCFunction_New(&bridge_instanceDef, nullptr);

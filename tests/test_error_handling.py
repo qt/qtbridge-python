@@ -44,32 +44,6 @@ class TestErrorHandling:
             messages = [msg for msg in messages if msg['type'] == msg_type]
         return messages
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
-    def test_no_data_method(self, qtbot):
-        """Test that error is raised when data() method is missing"""
-
-        class AutoQmlBridgeTest:
-            def __init__(self):
-                self._strings = []
-
-            def add_string(self, new_string: str) -> bool:
-                self._strings.append(new_string)
-                return True
-
-            def data(self):
-                return self._strings
-
-        original_data_method = AutoQmlBridgeTest.data
-        del AutoQmlBridgeTest.data
-        try:
-            with pytest.raises(
-                TypeError,
-                match=r"The class wrapped with bridge_instance must have a data\(\) method"
-            ):
-                bridge_instance(AutoQmlBridgeTest(), name="TestModel")
-        finally:
-            AutoQmlBridgeTest.data = original_data_method
-
     def test_system_error_critical_logging(self, qtbot):
         """Test that system errors generate critical log messages"""
         self.setup_message_capture()
@@ -356,18 +330,6 @@ class TestErrorHandling:
 
         finally:
             os.unlink(qml_path)
-
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
-    def test_bridge_instance_infer_data_type_empty_data(self, qtbot):
-        """Test that bridge_instance raises an error when data() has no type hint and
-           returns empty list."""
-        class EmptyModel:
-            def data(self):
-                pass
-
-        with pytest.raises(TypeError) as excinfo:
-            bridge_instance(EmptyModel(), name="EmptyModel")
-        assert "Could not infer data type from data() method" in str(excinfo.value)
 
 if __name__ == "__main__":
     pytest.main([__file__])

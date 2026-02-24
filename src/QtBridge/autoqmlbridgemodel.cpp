@@ -383,31 +383,28 @@ int AutoQmlBridgeModel::rowCount(const QModelIndex &parent) const
     if (!m_backend)
         return 0;
 
-    // If DataType is Unknown, it means this type is being used as a model but doesn't have data()
-    // This is an error for bridge_type() registered types
+    // If DataType is Unknown the object was registered without a data() method (or with one whose
+    // return type could not be inferred). This is fine when the object is used only as a plain QML
+    // singleton (methods/properties). Emit a descriptive warning only when it is actually used as
+    // a view model (i.e. when QML asks for rowCount()).
     if (m_datatype == DataType::Unknown) {
-        // bridge_type scenario
-        const auto *typeModel = dynamic_cast<const BridgePyTypeObjectModel*>(this);
-        if (typeModel) {
-            // Get the type name for a better error message
-            Shiboken::AutoDecRef typeObj(PyObject_Type(m_backend));
-            const char* typeName = typeObj.object() ? reinterpret_cast<PyTypeObject*>(typeObj.object())->tp_name : "Unknown";
+        Shiboken::AutoDecRef typeObj(PyObject_Type(m_backend));
+        const char *typeName = typeObj.object()
+            ? reinterpret_cast<PyTypeObject*>(typeObj.object())->tp_name : "Unknown";
+        const bool isBridgeType = dynamic_cast<const BridgePyTypeObjectModel*>(this) != nullptr;
+        const char *registrationFunc = isBridgeType ? "bridge_type()" : "bridge_instance()";
 
-            std::string errorMsg = std::string("Type '") + typeName +
-                "' is being used as a QML model but does not have a data() method. " +
-                "When using bridge_type() registered types as ListView models, you must provide a data() method. " +
-                "Please add a data() method with a return type hint, e.g.:\n" +
-                "  def data(self) -> list[str]: ...  # For simple lists\n" +
-                "  def data(self) -> List[MyDataClass]: ...  # For dataclass lists";
+        std::string errorMsg = std::string("Type '") + typeName +
+            "' is being used as a QML view model but does not have a data() method. " +
+            "When using " + registrationFunc + " registered types as ListView/TableView models "
+            "you must provide a data() method with a return type hint, e.g.:\n" +
+            "  def data(self) -> list[str]: ...  # For simple lists\n" +
+            "  def data(self) -> List[MyDataClass]: ...  # For dataclass lists";
 
-            PyErr_SetString(PyExc_TypeError, errorMsg.c_str());
-            logPythonException("AutoQmlBridgeModel::rowCount");
-
-            // Clear the exception. rowCount() can't propagate Python exceptions
-            PyErr_Clear();
-
-            return 0;
-        }
+        PyErr_SetString(PyExc_TypeError, errorMsg.c_str());
+        logPythonException("AutoQmlBridgeModel::rowCount");
+        PyErr_Clear(); // rowCount() cannot propagate Python exceptions
+        return 0;
     }
 
     switch (m_datatype) {
@@ -472,14 +469,10 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
     if (!index.isValid() || !m_backend)
         return {};
 
-    // If DataType is Unknown, it means this type is being used as a model but doesn't have data()
-    if (m_datatype == DataType::Unknown) {
-        const auto *typeModel = dynamic_cast<const BridgePyTypeObjectModel*>(this);
-        if (typeModel) {
-            // Error already logged in rowCount(), just return empty
-            return {};
-        }
-    }
+    // If DataType is Unknown there is no compatible data() method. The error has already been
+    // logged in rowCount(); just return an empty QVariant here.
+    if (m_datatype == DataType::Unknown)
+        return {};
 
     switch (m_datatype) {
     case DataType::List: {

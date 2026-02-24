@@ -49,9 +49,6 @@ class TestAutoPropertyBridgeInstance:
                 self.count = 0
                 self.label = "hello"
 
-            def data(self) -> list:
-                return []
-
 
         obj = _SimpleModel()
         bridge_instance(obj, name="SimpleModel")
@@ -79,9 +76,6 @@ Item {
             def __init__(self, value):
                 self.score = value
 
-            def data(self):
-                return []
-
         obj = DataModel(42)
         bridge_instance(obj, name="DataModel")
 
@@ -95,9 +89,6 @@ Item {
         class MutableModel:
             def __init__(self):
                 self.value = 10
-
-            def data(self):
-                return []
 
         obj = MutableModel()
         bridge_instance(obj, name="MutableModel")
@@ -122,9 +113,6 @@ Item {
         class ObservableModel:
             def __init__(self):
                 self.score = 0
-
-            def data(self):
-                return []
 
         obj = ObservableModel()
         bridge_instance(obj, name="ObservableModel")
@@ -161,9 +149,6 @@ Item {
                 self._secret = 99
                 self.public = 1
 
-            def data(self):
-                return []
-
         obj = PrivateModel()
         bridge_instance(obj, name="PrivateModel")
 
@@ -181,9 +166,6 @@ Item {
                 self.name = "keep"
                 self.internal = "skip"
 
-            def data(self):
-                return []
-
         obj = FilteredModel()
         bridge_instance(obj, name="FilteredModel", exclude_properties={"internal"})
 
@@ -197,9 +179,6 @@ Item {
         class SharedModel:
             def __init__(self, x):
                 self.x = x
-
-            def data(self):
-                return []
 
         obj1 = SharedModel(1)
         obj2 = SharedModel(2)
@@ -310,9 +289,6 @@ class TestExplicitPropertyNotOverridden:
                 print(f"custom setter called with {v}")
                 self._value = v
 
-            def data(self):
-                return []
-
         obj = ManualPropModel()
         bridge_instance(obj, name="ManualPropModel")
 
@@ -356,9 +332,6 @@ Item {
                     print(f"count setter: {self._count} -> {value}")
                     self._count = value
                     self.countChanged.emit(self._count)
-
-            def data(self):
-                return []
 
         obj = CounterModel()
         bridge_instance(obj, name="CounterModel")

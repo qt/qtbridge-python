@@ -104,21 +104,81 @@ class TestBridgeInstance:
         assert "add_string called with Test String" in captured.out
 
     @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
-    def test_no_data_method(self, qtbot):
-        """Test that error is raised when data() method is missing"""
+    def test_no_data_method(self, qtbot, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+        """Test that bridge_instance() succeeds without data() and methods are still callable.
+
+        data() is only required when the object is used as a QML view model
+        (e.g. ListView.model). Plain method/property access must still work fine
+        without it.
+        """
+        TEST_QML_NO_DATA = """
+import QtQuick 2.0
+import backend 1.0
+
+Item {
+    Component.onCompleted: {
+        NoDataMethodModel.add_string("hello from QML")
+    }
+}
+"""
         original_data_method = AutoQmlBridgeTest.data
-        # Remove it from the class
+        # Remove data() from the class temporarily
         del AutoQmlBridgeTest.data
 
         try:
-            with pytest.raises(
-                TypeError,
-                match=r"The class wrapped with bridge_instance must have a data\(\) method"
-            ):
-                bridge_instance(self.test_model, name="TestModel")
+            # Should NOT raise an error at registration time
+            bridge_instance(self.test_model, name="NoDataMethodModel")
+
+            qml_file = tmp_path / "test_no_data.qml"
+            qml_file.write_text(TEST_QML_NO_DATA)
+            self.engine.load(QUrl.fromLocalFile(str(qml_file)))
+            qtbot.waitUntil(lambda: bool(self.engine.rootObjects()))
+
+            # Verify the method was actually invoked
+            assert self.test_model._strings == ["hello from QML"]
+            captured = capsys.readouterr()
+            assert "add_string called with hello from QML" in captured.out
         finally:
             # Restore the original data() method
             AutoQmlBridgeTest.data = original_data_method
+
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
+    def test_no_data_method_used_as_view_model(self, qtbot, tmp_path: Path):
+        """Test that a class without data() emits a warning when used as a QML view model.
+        """
+        TEST_QML_AS_VIEW_MODEL = """
+import QtQuick 2.0
+import backend 1.0
+
+Item {
+    width: 200
+    height: 200
+
+    ListView {
+        anchors.fill: parent
+        model: NoDataViewModel
+        delegate: Text { text: display }
+    }
+}
+"""
+        class NoDataViewModel:
+            def add_item(self, item: str) -> None:
+                pass
+
+        instance = NoDataViewModel()
+        bridge_instance(instance, name="NoDataViewModel")
+
+        qInstallMessageHandler(self.message_handler)
+
+        qml_file = tmp_path / "test_view_model.qml"
+        qml_file.write_text(TEST_QML_AS_VIEW_MODEL)
+        self.engine.load(QUrl.fromLocalFile(str(qml_file)))
+        qtbot.waitUntil(lambda: bool(self.engine.rootObjects()))
+
+        assert any(
+            "does not have a data() method" in msg
+            for msg in self.captured_messages
+        ), f"Expected missing-data() warning, got: {self.captured_messages}"
 
     def test_property_registration(self, qtbot, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
         engine = QQmlApplicationEngine()
