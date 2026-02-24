@@ -349,11 +349,18 @@ AutoQmlBridgeModel::AutoQmlBridgeModel(PyObject *backend, const QMetaObject *met
         Py_XINCREF(m_backend);
 
 
-    if (m_datatype == DataType::DataClassList) {
+    switch (m_datatype) {
+    case DataType::DataClassList:
         setupDataClassRoles();
-    } else if (m_datatype == DataType::DictList) {
-        // Check if it's a list of dict to setup keys
+        break;
+    case DataType::DictList:
         setupDictRoles();
+        break;
+    case DataType::Table:
+        setupTableRoles();
+        break;
+    default:
+        break;
     }
 }
 
@@ -423,9 +430,32 @@ int AutoQmlBridgeModel::rowCount(const QModelIndex &parent) const
 
         return static_cast<int>(PyList_Size(data.object()));
     }
-    // case DataType::Table:
-    //     // Future: handle pandas DataFrame
-    //     break;
+    case DataType::Table: {
+        Shiboken::AutoDecRef df(PyObject_CallMethod(m_backend, "data", nullptr));
+
+        if (PyErr_Occurred()) {
+            logPythonException("AutoQmlBridgeModel::rowCount: error calling backend.data() (Table)");
+            return 0;
+        }
+
+        if (!df || df.isNull())
+            return 0;
+
+        Shiboken::AutoDecRef height(PyObject_GetAttrString(df.object(), "height"));
+        if (!height || !PyLong_Check(height.object())) {
+            // Fallback: try shape[0]
+            Shiboken::AutoDecRef shape(PyObject_GetAttrString(df.object(), "shape"));
+            if (shape && PyTuple_Check(shape.object()) && PyTuple_Size(shape.object()) >= 1) {
+                PyObject *rows = PyTuple_GetItem(shape.object(), 0);
+                if (rows && PyLong_Check(rows))
+                    return static_cast<int>(PyLong_AsLong(rows));
+            }
+            PyErr_Clear();
+            return 0;
+        }
+
+        return static_cast<int>(PyLong_AsLong(height.object()));
+    }
     default:
         return 0;
     }
@@ -437,9 +467,12 @@ int AutoQmlBridgeModel::columnCount(const QModelIndex &parent) const
     switch (m_datatype) {
     case DataType::List:
         return 1;
-    // case DataType::Table:
-    //     // Future: return DataFrame column count
-    //     break;
+    case DataType::DataClassList:
+        return m_dataClassFieldNames.isEmpty() ? 1 : m_dataClassFieldNames.size();
+    case DataType::DictList:
+        return m_dictKeyNames.isEmpty() ? 1 : m_dictKeyNames.size();
+    case DataType::Table:
+        return m_tableColumnCount;
     default:
         return 1;
     }
@@ -500,6 +533,20 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
         if (!dataclassItem)
             return {};
 
+        // For DisplayRole with a valid column, use column index to get field
+        if (role == Qt::DisplayRole && index.column() >= 0
+            && index.column() < m_dataClassFieldNames.size()) {
+            const QString &fieldName = m_dataClassFieldNames.at(index.column());
+            PyObject *fieldValue = PyObject_GetAttrString(dataclassItem, fieldName.toUtf8().constData());
+            if (!fieldValue) {
+                PyErr_Clear();
+                return {};
+            }
+            auto variantOpt = pyObject2VariantOpt(fieldValue);
+            Py_XDECREF(fieldValue);
+            return variantOpt.value_or(QVariant());
+        }
+
         // Find the field name for this role
         QByteArray fieldName = m_dataClassRoles.value(role);
 
@@ -542,6 +589,20 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
             return {};
         }
 
+        // Column-based access for DisplayRole (TableView)
+        if (role == Qt::DisplayRole) {
+            int col = index.column();
+            if (col >= 0 && col < m_dictKeyNames.size()) {
+                const QString &key = m_dictKeyNames.at(col);
+                PyObject *value = PyDict_GetItemString(item, key.toUtf8().constData());
+                if (value) {
+                    auto variantOpt = pyObject2VariantOpt(value);
+                    return variantOpt.value_or(QVariant());
+                }
+            }
+            return {};
+        }
+
         // Get the role name for this role
         QByteArray roleName = m_dictRoles.value(role);
 
@@ -550,6 +611,57 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
             PyObject *value = PyDict_GetItemString(item, roleName.constData());
             if (value) {
                 auto variantOpt = pyObject2VariantOpt(value);
+                return variantOpt.value_or(QVariant());
+            }
+        }
+        return {};
+    }
+    case DataType::Table: {
+        Shiboken::GilState gil;
+
+        Shiboken::AutoDecRef df(PyObject_CallMethod(m_backend, "data", nullptr));
+        if (!df || df.isNull()) {
+            logPythonException("AutoQmlBridgeModel::data: error calling backend.data() (Table)");
+            return {};
+        }
+
+        int row = index.row();
+        int col = index.column();
+
+        // For DisplayRole, use the column index directly
+        if (role == Qt::DisplayRole) {
+            if (col < 0 || col >= m_tableColumnCount)
+                return {};
+
+            Shiboken::AutoDecRef value(PyObject_CallMethod(
+                df.object(), "item", "ii", row, col));
+            if (PyErr_Occurred()) {
+                PyErr_Clear();
+                return {};
+            }
+            if (!value || value.isNull())
+                return {};
+
+            auto variantOpt = pyObject2VariantOpt(value.object());
+            return variantOpt.value_or(QVariant());
+        }
+
+        // For custom roles, look up the column name from the role mapping
+        QByteArray colName = m_tableColumnRoles.value(role);
+        if (!colName.isEmpty()) {
+            // Find column index from name
+            int colIdx = m_tableColumnNames.indexOf(QString::fromUtf8(colName));
+            if (colIdx >= 0) {
+                Shiboken::AutoDecRef value(PyObject_CallMethod(
+                    df.object(), "item", "ii", row, colIdx));
+                if (PyErr_Occurred()) {
+                    PyErr_Clear();
+                    return {};
+                }
+                if (!value || value.isNull())
+                    return {};
+
+                auto variantOpt = pyObject2VariantOpt(value.object());
                 return variantOpt.value_or(QVariant());
             }
         }
@@ -611,17 +723,28 @@ QHash<int, QByteArray> AutoQmlBridgeModel::roleNames() const
         break;
     case DataType::DataClassList:
         // Return the cached dataclass roles if available
-        if (!m_dataClassRoles.isEmpty())
-            return m_dataClassRoles;
+        if (!m_dataClassRoles.isEmpty()) {
+            QHash<int, QByteArray> dataClassRoles = m_dataClassRoles;
+            dataClassRoles[Qt::DisplayRole] = "display";
+            return dataClassRoles;
+        }
         // Fallback to display role if roles not set up yet
         roles[Qt::DisplayRole] = "display";
         break;
-    // case DataType::Table:
-    //     // Future: add roles for DataFrame columns
-    //     break;
+    case DataType::Table:
+        if (!m_tableColumnRoles.isEmpty()) {
+            QHash<int, QByteArray> tableRoles = m_tableColumnRoles;
+            tableRoles[Qt::DisplayRole] = "display";
+            return tableRoles;
+        }
+        roles[Qt::DisplayRole] = "display";
+        break;
     case DataType::DictList:
-        if (!m_dictRoles.isEmpty())
-            return m_dictRoles;
+        if (!m_dictRoles.isEmpty()) {
+            QHash<int, QByteArray> dictRoles = m_dictRoles;
+            dictRoles[Qt::DisplayRole] = "display";
+            return dictRoles;
+        }
         // Fallback to display role if roles not set up yet
         roles[Qt::DisplayRole] = "display";
         break;
@@ -643,14 +766,21 @@ QModelIndex AutoQmlBridgeModel::index(int row, int column, const QModelIndex &pa
 {
     switch (m_datatype) {
     case DataType::List:
-    case DataType::DataClassList:
-    case DataType::DictList:
         if (parent.isValid() || column != 0)
             return {};
         return createIndex(row, column);
-    // case DataType::Table:
-    //     // Future: handle DataFrame index creation
-    //     break;
+    case DataType::DataClassList:
+        if (parent.isValid() || column < 0 || column >= (m_dataClassFieldNames.isEmpty() ? 1 : m_dataClassFieldNames.size()))
+            return {};
+        return createIndex(row, column);
+    case DataType::DictList:
+        if (parent.isValid() || column < 0 || column >= (m_dictKeyNames.isEmpty() ? 1 : m_dictKeyNames.size()))
+            return {};
+        return createIndex(row, column);
+    case DataType::Table:
+        if (parent.isValid() || column < 0 || column >= m_tableColumnCount)
+            return {};
+        return createIndex(row, column);
     default:
         return {};
     }
@@ -1170,6 +1300,83 @@ void AutoQmlBridgeModel::setupDictRoles()
 
     qCDebug(lcQtBridge, "SetupDictRoles: Created %lld roles for dictionary fields",
         static_cast<long long>(m_dictRoles.size()));
+}
+
+void AutoQmlBridgeModel::setupTableRoles()
+{
+    if (!m_backend)
+        return;
+
+    Shiboken::GilState gil;
+
+    // Call backend.data() to get the DataFrame
+    Shiboken::AutoDecRef df(PyObject_CallMethod(m_backend, "data", nullptr));
+    if (PyErr_Occurred() || !df || df.isNull()) {
+        logPythonException("AutoQmlBridgeModel::setupTableRoles: error calling backend.data()");
+        PyErr_Clear();
+        return;
+    }
+
+    // Get column names: df.columns -> list[str]
+    Shiboken::AutoDecRef columns(PyObject_GetAttrString(df.object(), "columns"));
+    if (!columns || !PySequence_Check(columns.object())) {
+        qCWarning(lcQtBridge, "setupTableRoles: DataFrame has no 'columns' attribute or it's not a sequence");
+        PyErr_Clear();
+        return;
+    }
+
+    Py_ssize_t numCols = PySequence_Size(columns.object());
+    if (numCols <= 0) {
+        qCWarning(lcQtBridge, "setupTableRoles: DataFrame has no columns");
+        PyErr_Clear();
+        return;
+    }
+
+    m_tableColumnCount = static_cast<int>(numCols);
+    m_tableColumnNames.clear();
+    m_tableColumnRoles.clear();
+
+    int baseRole = Qt::UserRole + 1000;
+
+    for (Py_ssize_t i = 0; i < numCols; ++i) {
+        Shiboken::AutoDecRef colItem(PySequence_GetItem(columns.object(), i));
+        if (colItem && PyUnicode_Check(colItem.object())) {
+            const char *colName = Shiboken::String::toCString(colItem.object());
+            if (colName) {
+                QString name = QString::fromUtf8(colName);
+                m_tableColumnNames.append(name);
+                m_tableColumnRoles[baseRole + static_cast<int>(i)] = name.toUtf8();
+            }
+        }
+    }
+
+    qCDebug(lcQtBridge, "setupTableRoles: Created %d columns/roles for DataFrame",
+        m_tableColumnCount);
+}
+
+QVariant AutoQmlBridgeModel::headerData(int section, Qt::Orientation orientation, int role) const
+{
+    if (role != Qt::DisplayRole)
+        return {};
+
+    if (orientation == Qt::Horizontal) {
+        // For Table data, return column names
+        if (m_datatype == DataType::Table && section >= 0 && section < m_tableColumnNames.size())
+            return m_tableColumnNames.at(section);
+
+        // For DictList, return dict key names as column headers
+        if (m_datatype == DataType::DictList && section >= 0 && section < m_dictKeyNames.size())
+            return m_dictKeyNames.at(section);
+
+        // For DataClassList, return field names as column headers
+        if (m_datatype == DataType::DataClassList && section >= 0 && section < m_dataClassFieldNames.size())
+            return m_dataClassFieldNames.at(section);
+    }
+
+    if (orientation == Qt::Vertical)
+        return section + 1;  // 1-based row numbers
+
+    return {};
 }
 
 void *BridgePyTypeObjectModel::qt_metacast(const char *classname)

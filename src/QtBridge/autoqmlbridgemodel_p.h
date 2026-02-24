@@ -16,9 +16,9 @@ namespace QtBridges {
 
 enum class DataType {
     Unknown,
-    List,        // List of primitive types (int, str, etc.)
-    DataClassList, // List of dataclass objects
-    Table,
+    List,           // List of primitive types (int, str, etc.)
+    DataClassList,  // List of dataclass objects
+    Table,          // DataFrame (polars, pandas, or any DataFrame-like object)
     DictList        // List of dictionary, or list of nested dictionary
 };
 
@@ -37,6 +37,7 @@ public:
     QHash<int, QByteArray> roleNames() const override;
     QModelIndex parent(const QModelIndex &child) const override;
     QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const override;
+    QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
     const QMetaObject *metaObject() const override;
     void setDynamicMetaObject(const QMetaObject *metaObject);
     int qt_metacall(QMetaObject::Call call, int id, void **args) override;
@@ -65,6 +66,9 @@ public:
     QStringList getDictKeys();
     void setupDictRoles();
 
+    // DataFrame / Table support methods
+    void setupTableRoles();
+
     // Emit property change signal by property index
     void emitPropertyChanged(int propertyIndex);
 
@@ -84,6 +88,11 @@ protected:
     // DictList support
     QHash<int, QByteArray> m_dictRoles;
     QStringList m_dictKeyNames;
+
+    // Table (DataFrame) support
+    QHash<int, QByteArray> m_tableColumnRoles;
+    QStringList m_tableColumnNames;
+    int m_tableColumnCount = 0;
 };
 
 /**
