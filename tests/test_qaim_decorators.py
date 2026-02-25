@@ -7,9 +7,9 @@ import pytest
 import tempfile
 from PySide6.QtCore import QUrl, qInstallMessageHandler
 from PySide6.QtQml import QQmlApplicationEngine
+polars = pytest.importorskip("polars", reason="polars not installed")
 
 from QtBridge import bridge_instance, bridge_type, insert, remove, move, edit, reset, complete
-
 
 class TestQAIMDecorators:
     """Test QAbstractItemModel decorators (@insert, @remove, @move, @edit) behavior"""
@@ -421,8 +421,8 @@ class TestQAIMDecorators:
         model = EditModel()
         bridge_instance(model, name="EditModelPy")
 
-        # Missing value argument
-        with pytest.raises(ValueError):
+        # Missing value argument — Python raises TypeError for missing positional arg
+        with pytest.raises(TypeError):
             model.edit_item(0)
 
         assert model.data() == ["A", "B"], "No item should be edited if argument is missing"
@@ -788,4 +788,54 @@ class TestQAIMDecorators:
 
         finally:
             os.unlink(temp_qml_path)
+
+    def test_edit_polars_table(self, qtbot):
+        """Test @edit called from QML updates a polars DataFrame row across all columns"""
+        class PolarsEditModel:
+            def __init__(self):
+                self._df = polars.DataFrame({
+                    "a": [1, 2, 3],
+                    "b": ["x", "y", "z"],
+                })
+
+            @edit
+            def edit_row(self, index: int, a: int, b: str):
+                # Edit both columns for the given row
+                if 0 <= index < len(self._df):
+                    rows = self._df.to_dicts()
+                    rows[index]["a"] = a
+                    rows[index]["b"] = b
+                    self._df = polars.DataFrame(rows)
+                    return True
+                return False
+
+            def data(self) -> polars.DataFrame:
+                return self._df
+
+        model = PolarsEditModel()
+        bridge_instance(model, name="PolarsEditModel")
+
+        df = model.data()
+        assert df[0, "a"] == 1
+        assert df[0, "b"] == "x"
+
+        qml_content = """
+        import QtQuick 2.0
+        import backend 1.0
+        Item { Component.onCompleted: { PolarsEditModel.edit_row(0, 42, "changed") } }
+        """
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.qml', delete=False) as f:
+            f.write(qml_content)
+            qml_path = f.name
+        try:
+            self.engine.load(QUrl.fromLocalFile(qml_path))
+            qtbot.wait(100)
+            df2 = model.data()
+            assert df2[0, "a"] == 42, "Column 'a' of row 0 should be updated to 42"
+            assert df2[0, "b"] == "changed", "Column 'b' of row 0 should be updated to 'changed'"
+            assert df2[1, "a"] == 2
+            assert df2[2, "a"] == 3
+        finally:
+            os.unlink(qml_path)
 

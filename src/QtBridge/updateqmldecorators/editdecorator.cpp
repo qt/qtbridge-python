@@ -30,10 +30,9 @@ PyObject *EditDecoratorPrivate::tp_call(PyObject *self, PyObject *args, PyObject
     }
 
     PyObject* index_obj = extractArgumentByName(this->m_wrapped_func, args, kwds, "index");
-    PyObject* value_obj = extractArgumentByName(this->m_wrapped_func, args, kwds, "value");
-    if (!index_obj || !value_obj) {
+    if (!index_obj) {
         logPythonException(
-            "@edit - Missing index or value argument in edit decorator");
+            "@edit - Missing index argument in edit decorator");
         return nullptr;
     }
 
@@ -59,9 +58,11 @@ PyObject *EditDecoratorPrivate::tp_call(PyObject *self, PyObject *args, PyObject
 
         return nullptr;
     }
-    QModelIndex changedIdx = model->index(index, 0); // column is 0
-    emit model->dataChanged(changedIdx, changedIdx);
-    qCDebug(lcQtBridge, "Data changed at index: %ld", index);
+    const int lastCol = model->columnCount() - 1;
+    QModelIndex topLeft = model->index(index, 0);
+    QModelIndex bottomRight = model->index(index, lastCol > 0 ? lastCol : 0);
+    emit model->dataChanged(topLeft, bottomRight);
+    qCDebug(lcQtBridge, "Data changed at row %ld, columns 0-%d", index, lastCol > 0 ? lastCol : 0);
     return result;
 }
 
@@ -75,11 +76,11 @@ int EditDecoratorPrivate::tp_init(PyObject *self, PyObject *args, PyObject *kwds
     PyObject *func{};
     PyArg_UnpackTuple(args, "edit", 1, 1, &func);
 
-    // Check that both 'index' and 'value' are present using helper functions
-    if (!hasArgumentByName(func, "index") || !hasArgumentByName(func, "value")) {
+    // Check that 'index' is present using helper functions
+    if (!hasArgumentByName(func, "index")) {
         PyErr_SetString(
             PyExc_TypeError,
-            "@edit-decorated function must have both 'index' and 'value' as argument names");
+            "@edit-decorated function must have 'index' as an argument name");
         return -1;
     }
 
