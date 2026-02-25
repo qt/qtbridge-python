@@ -897,18 +897,43 @@ void AutoQmlBridgeModel::startReset()
 
 void AutoQmlBridgeModel::endReset()
 {
-    // If we're dealing with a DataClassList and roles haven't been set up yet,
-    // try to set them up now (in case data was empty before but now has items)
-    if (m_datatype == DataType::DataClassList && m_dataClassRoles.isEmpty()) {
-        // Clear cached field names to force re-inspection
-        m_dataClassFieldNames.clear();
-        setupDataClassRoles();
-
-        if (!m_dataClassRoles.isEmpty()) {
-            qCDebug(lcQtBridge,
-                    "AutoQmlBridgeModel::endReset: Set up %lld dataclass roles after reset",
-                    static_cast<long long>(m_dataClassRoles.size()));
+    // Re-initialize role metadata if it hasn't been set up yet (e.g. data() returned an empty
+    // container at construction time, but now has items after a reset).
+    switch (m_datatype) {
+    case DataType::DataClassList:
+        if (m_dataClassRoles.isEmpty()) {
+            m_dataClassFieldNames.clear();
+            setupDataClassRoles();
+            if (!m_dataClassRoles.isEmpty()) {
+                qCDebug(lcQtBridge,
+                        "AutoQmlBridgeModel::endReset: Set up %lld dataclass roles after reset",
+                        static_cast<long long>(m_dataClassRoles.size()));
+            }
         }
+        break;
+    case DataType::Table:
+        if (m_tableColumnRoles.isEmpty()) {
+            setupTableRoles();
+            if (!m_tableColumnRoles.isEmpty()) {
+                qCDebug(lcQtBridge,
+                        "AutoQmlBridgeModel::endReset: Set up %d table column roles after reset",
+                        m_tableColumnCount);
+            }
+        }
+        break;
+    case DataType::DictList:
+        if (m_dictRoles.isEmpty()) {
+            m_dictKeyNames.clear();
+            setupDictRoles();
+            if (!m_dictRoles.isEmpty()) {
+                qCDebug(lcQtBridge,
+                        "AutoQmlBridgeModel::endReset: Set up %lld dict roles after reset",
+                        static_cast<long long>(m_dictRoles.size()));
+            }
+        }
+        break;
+    default:
+        break;
     }
 
     endResetModel();
@@ -1037,6 +1062,23 @@ void BridgePyTypeObjectModel::createPythonInstance()
             }
             qCDebug(lcQtBridge, "Inferred data type for %s: %s",
                    m_pythonType->tp_name, datatypeName);
+        }
+
+        // Set up column/role metadata now that we have a live Python instance.
+        // The public AutoQmlBridgeModel constructor does this for bridge_instance();
+        // for bridge_type() we must do it here after the instance is created.
+        switch (m_datatype) {
+        case DataType::Table:
+            setupTableRoles();
+            break;
+        case DataType::DataClassList:
+            setupDataClassRoles();
+            break;
+        case DataType::DictList:
+            setupDictRoles();
+            break;
+        default:
+            break;
         }
 
         s_typeModelMap[m_backend] = this;

@@ -14,7 +14,36 @@ polars = pytest.importorskip("polars", reason="polars not installed")
 from PySide6.QtCore import Qt, QUrl, qInstallMessageHandler, QModelIndex
 from PySide6.QtQml import QQmlApplicationEngine
 
-from QtBridge import bridge_instance
+from QtBridge import bridge_instance, bridge_type, insert
+
+class BridgeTypeBasic:
+    """Provides a pre-populated DataFrame for bridge_type basic tests."""
+
+    def __init__(self):
+        self._df = polars.DataFrame({"name": ["Alice", "Bob"], "score": [95, 87]})
+
+    def data(self) -> polars.DataFrame:
+        return self._df
+
+
+class BridgeTypeInsert:
+    """Starts with an empty DataFrame; rows are added via @insert."""
+
+    def __init__(self):
+        self._df = polars.DataFrame(
+            {"name": polars.Series([], dtype=polars.Utf8),
+             "score": polars.Series([], dtype=polars.Int64)}
+        )
+
+    def data(self) -> polars.DataFrame:
+        return self._df
+
+    @insert
+    def add_row(self, name: str, score: int):
+        self._df = polars.concat(
+            [self._df, polars.DataFrame({"name": [name], "score": [score]})]
+        )
+
 
 class PolarsModel:
     """Model that returns a Polars DataFrame via data()."""
@@ -271,3 +300,103 @@ Item {
 
         assert any("TOTAL=6" in m for m in self.captured_messages), \
             f"Expected TOTAL=6, got: {self.captured_messages}"
+
+
+class TestBridgeTypeTable:
+    """Verify bridge_type() + polars DataFrame support."""
+
+    def setup_method(self):
+        self.engine = QQmlApplicationEngine()
+        self.captured_messages: list[str] = []
+
+    def teardown_method(self):
+        if self.engine:
+            del self.engine
+            self.engine = None
+        qInstallMessageHandler(None)
+
+    def message_handler(self, msg_type, context, message):
+        self.captured_messages.append(message)
+
+    def test_bridge_type_row_and_column_count(self, qtbot):
+        """QML-instantiated bridge_type model should report correct row/column counts."""
+
+        bridge_type(BridgeTypeBasic, uri="backend_bt", version="1.0")
+
+        qml = """
+import QtQuick 2.0
+import backend_bt 1.0
+
+Item {
+    BridgeTypeBasic { id: m }
+    Component.onCompleted: {
+        console.log("BT_ROWS=" + m.rowCount())
+        console.log("BT_COLS=" + m.columnCount())
+    }
+}
+"""
+        qInstallMessageHandler(self.message_handler)
+        self.engine.loadData(qml.encode(), QUrl())
+        qtbot.wait(200)
+
+        assert any("BT_ROWS=2" in m for m in self.captured_messages), \
+            f"Expected BT_ROWS=2, got: {self.captured_messages}"
+        assert any("BT_COLS=2" in m for m in self.captured_messages), \
+            f"Expected BT_COLS=2, got: {self.captured_messages}"
+
+    def test_bridge_type_display_role(self, qtbot):
+        """DisplayRole access should work on bridge_type + polars."""
+
+        bridge_type(BridgeTypeBasic, uri="backend_bt", version="1.0")
+
+        qml = """
+import QtQuick 2.0
+import backend_bt 1.0
+
+Item {
+    BridgeTypeBasic { id: m }
+    Component.onCompleted: {
+        // Qt::DisplayRole == 0
+        console.log("BT_NAME0=" + m.data(m.index(0, 0), 0))
+        console.log("BT_SCORE0=" + m.data(m.index(0, 1), 0))
+    }
+}
+"""
+        qInstallMessageHandler(self.message_handler)
+        self.engine.loadData(qml.encode(), QUrl())
+        qtbot.wait(200)
+
+        assert any("BT_NAME0=Alice" in m for m in self.captured_messages), \
+            f"Expected BT_NAME0=Alice, got: {self.captured_messages}"
+        assert any("BT_SCORE0=95" in m for m in self.captured_messages), \
+            f"Expected BT_SCORE0=95, got: {self.captured_messages}"
+
+    def test_bridge_type_insert_updates_model(self, qtbot):
+        """@insert decorator should grow the DataFrame and update rowCount/data."""
+
+        bridge_type(BridgeTypeInsert, uri="backend_bt", version="1.0")
+
+        qml = """
+import QtQuick 2.0
+import backend_bt 1.0
+
+Item {
+    BridgeTypeInsert { id: m }
+    Component.onCompleted: {
+        m.add_row("Carol", 77)
+        console.log("BT_INS_ROWS=" + m.rowCount())
+        console.log("BT_INS_NAME0=" + m.data(m.index(0, 0), 0))
+        console.log("BT_INS_SCORE0=" + m.data(m.index(0, 1), 0))
+    }
+}
+"""
+        qInstallMessageHandler(self.message_handler)
+        self.engine.loadData(qml.encode(), QUrl())
+        qtbot.wait(200)
+
+        assert any("BT_INS_ROWS=1" in m for m in self.captured_messages), \
+            f"Expected BT_INS_ROWS=1, got: {self.captured_messages}"
+        assert any("BT_INS_NAME0=Carol" in m for m in self.captured_messages), \
+            f"Expected BT_INS_NAME0=Carol, got: {self.captured_messages}"
+        assert any("BT_INS_SCORE0=77" in m for m in self.captured_messages), \
+            f"Expected BT_INS_SCORE0=77, got: {self.captured_messages}"
