@@ -17,6 +17,17 @@ except ImportError:
     import logging
     _logger = logging.getLogger("qtbridge-python")
 
+# module level variable to hold QML engine
+# used for QML component factories
+_engine: QQmlApplicationEngine | None = None
+
+
+def get_engine() -> QQmlApplicationEngine | None:
+    """Return the QQmlApplicationEngine created by the active @qtbridge context,
+    or None if no engine is currently running."""
+    return _engine
+
+
 def qtbridge(
     *,
     module: str | None = None,
@@ -40,8 +51,11 @@ def qtbridge(
             app = QGuiApplication.instance()
             if not app:
                 app = QGuiApplication(sys.argv)
-            func(*args, **kwargs)
+
             engine = QQmlApplicationEngine()
+
+            global _engine
+            _engine = engine
 
             if import_paths:
                 for path in import_paths:
@@ -52,6 +66,8 @@ def qtbridge(
                     engine.addImportPath(str(resolved))
             # Always add the script's own directory so sibling qmldirs are found.
             engine.addImportPath(str(caller_dir))
+
+            func(*args, **kwargs)
 
             # --- Load QML content ---
             if qml_file:
@@ -79,6 +95,7 @@ def qtbridge(
             _logger.debug("Entering event loop")
             result = app.exec()
             _logger.debug("Event loop exited with code: %s", result)
+            _engine = None
             del engine
             return result
         return wrapper

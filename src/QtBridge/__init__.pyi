@@ -4,6 +4,8 @@
 from typing import Any, Protocol, overload
 from collections.abc import Callable
 
+from PySide6.QtCore import QObject
+
 
 class Signal:
     """
@@ -471,5 +473,151 @@ def complete(func: Callable[..., Any]) -> Callable[..., Any]:
     ...     // componentComplete() is called here automatically
     ...     // after url property is set
     ... }
+    """
+    ...
+
+
+class QmlObject:
+    """Python wrapper around a QML-created QObject using composition.
+
+    Provides direct attribute access for QML properties, signals, and methods.
+    """
+
+    @property
+    def qobject(self) -> QObject:
+        """Access the underlying QObject directly."""
+        ...
+
+    def __getattr__(self, name: str) -> Any:
+        """Access QML properties, signals, or methods by name."""
+        ...
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """Set QML properties by name."""
+        ...
+
+
+class QmlComponentFactory:
+    """Factory for creating instances of a QML component from Python.
+
+    Returned by :func:`load_qml_component`. Actual object creation is deferred
+    to :meth:`create`, which requires the ``@qtbridge`` engine to be running.
+    This is similar to how QQmlComponent works in C++.
+    """
+
+    def create(self, **initial_properties: Any) -> QmlObject:
+        """Create a new instance of the QML component.
+
+        Parameters
+        ----------
+        **initial_properties
+            Property values to set during construction.
+
+        Returns
+        -------
+        QmlObject
+            A Pythonic wrapper around the created QObject.
+
+        Raises
+        ------
+        RuntimeError
+            If the ``@qtbridge`` engine is not running or the component
+            fails to load.
+        """
+        ...
+
+
+@overload
+def load_qml_component(source: str) -> QmlComponentFactory:
+    """Load a QML component from a ``.qml`` file path.
+
+    Parameters
+    ----------
+    source : str
+        Path to a ``.qml`` file (absolute, or relative to the caller's
+        script directory).
+
+    Returns
+    -------
+    QmlComponentFactory
+        A factory whose ``.create()`` method yields :class:`QmlObject`
+        instances.
+    """
+    ...
+
+@overload
+def load_qml_component(*, module: str, type_name: str) -> QmlComponentFactory:
+    """Load a QML component from a module.
+
+    Parameters
+    ----------
+    module : str
+        QML module URI (e.g. ``"QtQuick"``).
+    type_name : str
+        Type name inside the QML module (e.g. ``"Rectangle"``).
+
+    Returns
+    -------
+    QmlComponentFactory
+        A factory whose ``.create()`` method yields :class:`QmlObject`
+        instances.
+    """
+    ...
+
+def load_qml_component(source: str | None = None, *, module: str | None = None, type_name: str | None = None) -> QmlComponentFactory:
+    """Load a QML component for instantiation from Python.
+
+    There are two ways to specify the component:
+
+    **File path** -- pass a ``.qml`` file path::
+
+        Person = load_qml_component("person.qml")
+
+    **Module + type** -- use keyword arguments::
+
+        Person = load_qml_component(module="MyModule", type_name="Person")
+
+    The returned factory does **not** require the QML engine yet; the actual
+    loading and instantiation happens when you call ``factory.create()``.
+
+    Parameters
+    ----------
+    source : str, optional
+        Path to a ``.qml`` file.
+    module : str, optional
+        QML module URI.
+    type_name : str, optional
+        Type name inside the QML module.
+
+    Returns
+    -------
+    QmlComponentFactory
+
+    Raises
+    ------
+    ValueError
+        If neither a file path nor a module/type_name pair is provided.
+
+    Example
+    -------
+    ```python
+    from QtBridge import load_qml_component, qtbridge
+
+    Person = load_qml_component("person.qml")
+
+    class Employee:
+        def __init__(self, name, age, department):
+            self.person = Person.create(name=name, age=age)
+            self.department = department
+            self.person.birthdayHappened.connect(self.on_birthday)
+
+        def on_birthday(self):
+            print(f"{self.person.name} is now {self.person.age}!")
+
+    @qtbridge(module="Main")
+    def main():
+        emp = Employee("Alice", 28, "Engineering")
+        emp.person.celebrateBirthday()  # Alice is now 29!
+    ```
     """
     ...
