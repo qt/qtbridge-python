@@ -13,11 +13,18 @@ import inspect
 import textwrap
 from typing import Any, Set, Dict, Optional
 
+from QtBridge import Signal
+from .property_observers import collect_observers, Change
+
 try:
     from ._build_config import _logger
 except ImportError:
     import logging
     _logger = logging.getLogger("qtbridge-python")
+
+
+# Sentinel used to detect the very first property write (from __init__)
+_UNSET = object()
 
 class InitAttributeFinder(ast.NodeVisitor):
     """AST visitor to find all self.attribute assignments in __init__"""
@@ -105,18 +112,18 @@ def find_init_attributes(cls: type) -> Dict[str, Any]:
                   "skipping auto-property generation", cls_name)
         return {}
 
-
 def augment_class_with_auto_properties(cls: type, exclude: Optional[Set[str]] = None) -> type:
     """
     Augment a class by adding auto-generated properties for __init__ attributes.
     This modifies the class in-place and returns it for convenience.
     """
-    from QtBridge import Signal
-
     # Find attributes in __init__
     exclude = exclude or set()
     attributes = find_init_attributes(cls)
     cls_name = _get_cls_name(cls)
+
+    # Collect @watch / @effect metadata
+    observers = collect_observers(cls)
     _logger.debug("augment_class_with_auto_properties: %s — found raw attributes: %s",
                   cls_name, list(attributes.keys()))
 
@@ -155,33 +162,48 @@ def augment_class_with_auto_properties(cls: type, exclude: Optional[Set[str]] = 
                 return getattr(self, priv_name, default)
             return getter
 
-        def make_setter(priv_name, sig_name):
+        # Collect observer callbacks for this specific property
+        prop_observers = observers.get(attr_name, {"watchers": [], "effects": []})
+        prop_watchers = list(prop_observers["watchers"])
+        prop_effects = list(prop_observers["effects"])
+
+        def make_setter(priv_name, sig_name, prop_name, watchers, effects):
             def setter(self, value):
-                old_value = getattr(self, priv_name, None)
+                old_value = getattr(self, priv_name, _UNSET)
+                if old_value is _UNSET:
+                    # this is the first __init__ assignment.
+                    # don't fire watchers/effects, and suppres notify signal
+                    setattr(self, priv_name, value)
+                    return
                 # if same value, then don't emit signal
                 if old_value == value:
-                    # No change. Prevent CPython signal emit
+                    # No change. Prevent C++ WriteProperty from double-firing.
                     self.__dict__['_qtbridge_suppress_notify'] = True
                     return
                 setattr(self, priv_name, value)
 
-                # Emit changed signal if value actually changed
-                if old_value != value:
-                    signal = getattr(self, sig_name, None)
-                    if signal is not None and hasattr(signal, 'emit'):
-                        try:
-                            _logger.debug("Emitting signal: %s.%s for attribute change", cls_name, sig_name)
-                            signal.emit()
-                        except RuntimeError:
-                            _logger.debug("signal.emit() skipped for %s.%s: object not yet registered",
-                                        cls_name, sig_name)
-                # Tell C++ WriteProperty not to double-fire emitPropertyChanged
-                self.__dict__['_qtbridge_suppress_notify'] = True
+                # Invoke @watch callbacks: method(self, change: Change)
+                for watcher in watchers:
+                    try:
+                        watcher(self, Change(name=prop_name, old=old_value, new=value, owner=self))
+                    except Exception:
+                        _logger.exception("@watch callback %s failed for %s.%s",
+                                          getattr(watcher, '__name__', watcher),
+                                          cls_name, sig_name)
+
+                # Invoke @effect callbacks: method(self)
+                for eff in effects:
+                    try:
+                        eff(self)
+                    except Exception:
+                        _logger.exception("@effect callback %s failed for %s.%s",
+                                          getattr(eff, '__name__', eff),
+                                          cls_name, sig_name)
             return setter
 
         prop = property(
             fget=make_getter(private_name, default_value),
-            fset=make_setter(private_name, signal_name)
+            fset=make_setter(private_name, signal_name, attr_name, prop_watchers, prop_effects)
         )
 
         # Set the property on the class

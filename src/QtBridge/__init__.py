@@ -110,6 +110,18 @@ def __getattr__(name: str) -> Any:
         from .qtbridge_py.qml_component import QmlComponentFactory
         globals()["QmlComponentFactory"] = QmlComponentFactory
         return QmlComponentFactory
+    if name == "Change":
+        from .qtbridge_py.property_observers import Change
+        globals()["Change"] = Change
+        return Change
+    if name == "watch":
+        from .qtbridge_py.property_observers import watch
+        globals()["watch"] = watch
+        return watch
+    if name == "effect":
+        from .qtbridge_py.property_observers import effect
+        globals()["effect"] = effect
+        return effect
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
-__all__ = ["bridge_instance", "bridge_type", "insert", "remove", "move", "edit", "reset", "complete", "Signal", "qtbridge", "cpython_bridge_instance", "cpython_bridge_type", "load_qml_component", "QmlObject", "QmlComponentFactory"]
+__all__ = ["bridge_instance", "bridge_type", "insert", "remove", "move", "edit", "reset", "complete", "Signal", "qtbridge", "cpython_bridge_instance", "cpython_bridge_type", "load_qml_component", "QmlObject", "QmlComponentFactory", "watch", "effect", "Change"]

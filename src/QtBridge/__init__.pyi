@@ -636,3 +636,96 @@ def load_qml_component(source: str | None = None, *, module: str | None = None, 
     ```
     """
     ...
+
+
+class Change:
+    """
+    Describes a single property-value change, passed to ``@watch`` callbacks.
+
+    Attributes
+    ----------
+    name : str
+        The name of the property that changed.
+    old : Any
+        The value before the change.
+    new : Any
+        The value after the change.
+    owner : Any
+        The object instance whose property changed.
+    """
+    name: str
+    old: Any
+    new: Any
+    owner: Any
+    def __init__(self, name: str, old: Any, new: Any, owner: Any) -> None: ...
+
+
+def watch(property_name: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Mark a method as a **watcher** for a single auto-property.
+
+    The decorated method is called as ``method(self, change: Change)``
+    every time the named property changes.
+
+    Parameters
+    ----------
+    property_name : str
+        The name of the auto-property to observe (must match the attribute
+        name used in ``__init__``).
+
+    Raises
+    ------
+    TypeError
+        If the decorated method does not accept at least one parameter
+        beyond ``self`` (the ``change: Change`` argument).
+
+    Example
+    -------
+    ```python
+    from QtBridge import watch, Change
+
+    class Settings:
+        def __init__(self):
+            self.theme = "dark"
+
+        @watch("theme")
+        def on_theme_change(self, change: Change):
+            print(f"Theme changed: {change.old!r} → {change.new!r}")
+    ```
+    """
+    ...
+
+
+def effect(*property_names: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Mark a method as a side-**effect** triggered by one or more properties.
+
+    The decorated method is called as ``method(self)`` whenever *any* of the
+    listed properties change.  Unlike :func:`watch`, it does **not** receive
+    old/new values — it is meant for "re-run this when dependencies change"
+    patterns (persistence, derived computation, logging, etc.).
+
+    Parameters
+    ----------
+    *property_names : str
+        One or more auto-property names to observe.
+
+    Raises
+    ------
+    TypeError
+        If no property names are provided.
+
+    Example
+    -------
+    ```python
+    from QtBridge import effect
+
+    class Settings:
+        def __init__(self):
+            self.theme = "dark"
+            self.font_size = 14
+
+        @effect("theme", "font_size")
+        def persist(self):
+            save_to_disk({"theme": self.theme, "font_size": self.font_size})
+    ```
+    """
+    ...
