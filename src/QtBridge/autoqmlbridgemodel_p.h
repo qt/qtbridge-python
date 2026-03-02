@@ -10,6 +10,7 @@
 #include <QtCore/qmetaobject.h>
 #include <QtCore/qvariant.h>
 #include <QtCore/qhash.h>
+#include <QtCore/qbytearraylist.h>
 #include <QtQml/qqmlparserstatus.h>
 
 namespace QtBridges {
@@ -59,11 +60,11 @@ public:
     PyObject* getDataListItem(PyObject *backend, const QModelIndex &index, const char *errorContext) const;
 
     // DataClass support methods
-    QStringList getDataClassFieldNames() const;
+    QByteArrayList getDataClassFieldNames() const;
     void setupDataClassRoles();
 
     // List of dictionary support methods
-    QStringList getDictKeys();
+    QByteArrayList getDictKeys();
     void setupDictRoles();
 
     // DataFrame / Table support methods
@@ -83,15 +84,15 @@ protected:
 
     // DataClass support
     QHash<int, QByteArray> m_dataClassRoles;  // Role ID -> Field name mapping
-    QStringList m_dataClassFieldNames;        // Cached field names
+    QByteArrayList m_dataClassFieldNames;  // Cached field names
 
     // DictList support
     QHash<int, QByteArray> m_dictRoles;
-    QStringList m_dictKeyNames;
+    QByteArrayList m_dictKeyNames;
 
     // Table (DataFrame) support
     QHash<int, QByteArray> m_tableColumnRoles;
-    QStringList m_tableColumnNames;
+    QByteArrayList m_tableColumnNames;
     int m_tableColumnCount = 0;
 };
 

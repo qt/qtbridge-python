@@ -438,7 +438,7 @@ int AutoQmlBridgeModel::rowCount(const QModelIndex &parent) const
             return 0;
         }
 
-        if (!df || df.isNull())
+        if (df.isNull())
             return 0;
 
         Shiboken::AutoDecRef height(PyObject_GetAttrString(df.object(), "height"));
@@ -536,8 +536,8 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
         // For DisplayRole with a valid column, use column index to get field
         if (role == Qt::DisplayRole && index.column() >= 0
             && index.column() < m_dataClassFieldNames.size()) {
-            const QString &fieldName = m_dataClassFieldNames.at(index.column());
-            PyObject *fieldValue = PyObject_GetAttrString(dataclassItem, fieldName.toUtf8().constData());
+            const QByteArray &fieldName = m_dataClassFieldNames.at(index.column());
+            PyObject *fieldValue = PyObject_GetAttrString(dataclassItem, fieldName.constData());
             if (!fieldValue) {
                 PyErr_Clear();
                 return {};
@@ -593,8 +593,8 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
         if (role == Qt::DisplayRole) {
             int col = index.column();
             if (col >= 0 && col < m_dictKeyNames.size()) {
-                const QString &key = m_dictKeyNames.at(col);
-                PyObject *value = PyDict_GetItemString(item, key.toUtf8().constData());
+                const QByteArray &key = m_dictKeyNames.at(col);
+                PyObject *value = PyDict_GetItemString(item, key.constData());
                 if (value) {
                     auto variantOpt = pyObject2VariantOpt(value);
                     return variantOpt.value_or(QVariant());
@@ -620,7 +620,7 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
         Shiboken::GilState gil;
 
         Shiboken::AutoDecRef df(PyObject_CallMethod(m_backend, "data", nullptr));
-        if (!df || df.isNull()) {
+        if (df.isNull()) {
             logPythonException("AutoQmlBridgeModel::data: error calling backend.data() (Table)");
             return {};
         }
@@ -650,7 +650,7 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
         QByteArray colName = m_tableColumnRoles.value(role);
         if (!colName.isEmpty()) {
             // Find column index from name
-            int colIdx = m_tableColumnNames.indexOf(QString::fromUtf8(colName));
+            int colIdx = m_tableColumnNames.indexOf(colName);
             if (colIdx >= 0) {
                 Shiboken::AutoDecRef value(PyObject_CallMethod(
                     df.object(), "item", "ii", row, colIdx));
@@ -1172,7 +1172,7 @@ void AutoQmlBridgeModel::emitPropertyChanged(int propertyIndex)
     QMetaObject::activate(this, metaObj, signalIndex, nullptr);
 }
 
-QStringList AutoQmlBridgeModel::getDataClassFieldNames() const
+QByteArrayList AutoQmlBridgeModel::getDataClassFieldNames() const
 {
     if (!m_dataClassFieldNames.isEmpty())
         return m_dataClassFieldNames;
@@ -1188,7 +1188,7 @@ QStringList AutoQmlBridgeModel::getDataClassFieldNames() const
             PyObject *dataclassType = PyTuple_GetItem(args, 0);
             if (dataclassType && PyType_Check(dataclassType)) {
                 // Try to get field names from the dataclass type
-                QStringList fieldNames = QtBridges::getDataClassFieldNames(dataclassType);
+                QByteArrayList fieldNames = QtBridges::getDataClassFieldNames(dataclassType);
                 if (!fieldNames.isEmpty()) {
                     qCDebug(lcQtBridge,
                             "AutoQmlBridgeModel::getDataClassFieldNames: Got %lld fields from type hint",
@@ -1234,15 +1234,15 @@ void AutoQmlBridgeModel::setupDataClassRoles()
     int baseRole = Qt::UserRole + 1000;
 
     for (int i = 0; i < m_dataClassFieldNames.size(); ++i) {
-        const QString &fieldName = m_dataClassFieldNames[i];
-        m_dataClassRoles[baseRole + i] = fieldName.toUtf8();
+        const QByteArray &fieldName = m_dataClassFieldNames[i];
+        m_dataClassRoles[baseRole + i] = fieldName;
     }
 
     qCDebug(lcQtBridge, "SetupDataClassRoles: Created %lld roles for dataclass fields",
         static_cast<long long>(m_dataClassRoles.size()));
 }
 
-QStringList AutoQmlBridgeModel::getDictKeys()
+QByteArrayList AutoQmlBridgeModel::getDictKeys()
 {
     if (!m_backend)
         return {};
@@ -1260,7 +1260,7 @@ QStringList AutoQmlBridgeModel::getDictKeys()
         return {};
 
     if (PyDict_Check(firstItem)) {
-        QStringList fieldNames;
+        QByteArrayList fieldNames;
         // New reference
         PyObject *keys = PyDict_Keys(firstItem);
         if (keys) {
@@ -1270,7 +1270,7 @@ QStringList AutoQmlBridgeModel::getDictKeys()
                 PyObject *key = PyList_GetItem(keys, i);
                 if (key) {
                     const char *keyStr = Shiboken::String::toCString(key);
-                    fieldNames.append(QString::fromUtf8(keyStr));
+                    fieldNames.append(QByteArray(keyStr));
                 }
             }
         }
@@ -1294,8 +1294,8 @@ void AutoQmlBridgeModel::setupDictRoles()
     int baseRole = Qt::UserRole + 1000;
 
     for (int i = 0; i < m_dictKeyNames.size(); ++i) {
-        const QString &keyName = m_dictKeyNames[i];
-        m_dictRoles[baseRole + i] = keyName.toUtf8();
+        const QByteArray &keyName = m_dictKeyNames[i];
+        m_dictRoles[baseRole + i] = keyName;
     }
 
     qCDebug(lcQtBridge, "SetupDictRoles: Created %lld roles for dictionary fields",
@@ -1311,7 +1311,7 @@ void AutoQmlBridgeModel::setupTableRoles()
 
     // Call backend.data() to get the DataFrame
     Shiboken::AutoDecRef df(PyObject_CallMethod(m_backend, "data", nullptr));
-    if (PyErr_Occurred() || !df || df.isNull()) {
+    if (PyErr_Occurred() || df.isNull()) {
         logPythonException("AutoQmlBridgeModel::setupTableRoles: error calling backend.data()");
         PyErr_Clear();
         return;
@@ -1343,9 +1343,9 @@ void AutoQmlBridgeModel::setupTableRoles()
         if (colItem && PyUnicode_Check(colItem.object())) {
             const char *colName = Shiboken::String::toCString(colItem.object());
             if (colName) {
-                QString name = QString::fromUtf8(colName);
+                QByteArray name = QByteArray(colName);
                 m_tableColumnNames.append(name);
-                m_tableColumnRoles[baseRole + static_cast<int>(i)] = name.toUtf8();
+                m_tableColumnRoles[baseRole + static_cast<int>(i)] = name;
             }
         }
     }
@@ -1362,15 +1362,15 @@ QVariant AutoQmlBridgeModel::headerData(int section, Qt::Orientation orientation
     if (orientation == Qt::Horizontal) {
         // For Table data, return column names
         if (m_datatype == DataType::Table && section >= 0 && section < m_tableColumnNames.size())
-            return m_tableColumnNames.at(section);
+            return QString::fromUtf8(m_tableColumnNames.at(section));
 
         // For DictList, return dict key names as column headers
         if (m_datatype == DataType::DictList && section >= 0 && section < m_dictKeyNames.size())
-            return m_dictKeyNames.at(section);
+            return QString::fromUtf8(m_dictKeyNames.at(section));
 
         // For DataClassList, return field names as column headers
         if (m_datatype == DataType::DataClassList && section >= 0 && section < m_dataClassFieldNames.size())
-            return m_dataClassFieldNames.at(section);
+            return QString::fromUtf8(m_dataClassFieldNames.at(section));
     }
 
     if (orientation == Qt::Vertical)

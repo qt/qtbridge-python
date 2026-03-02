@@ -5,7 +5,7 @@
 #define helpers_P_H
 
 #include <sbkpython.h>
-#include <QtCore/qbytearray.h>
+#include <QtCore/qbytearraylist.h>
 #include <QtCore/qmetaobject.h>
 
 QT_FORWARD_DECLARE_STRUCT(PySideProperty)
@@ -63,7 +63,7 @@ bool isDataClassInstance(PyObject *obj);
 /**
  * Extract field names from a dataclass type
  */
-QStringList getDataClassFieldNames(PyObject *dataclassType);
+QByteArrayList getDataClassFieldNames(PyObject *dataclassType);
 
 /**
  * Check if a list contains dataclass instances

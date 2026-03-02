@@ -526,9 +526,9 @@ bool isDataClassInstance(PyObject *obj)
     return false;
 }
 
-QStringList getDataClassFieldNames(PyObject *dataclassType)
+QByteArrayList getDataClassFieldNames(PyObject *dataclassType)
 {
-    QStringList fieldNames;
+    QByteArrayList fieldNames;
 
     if (!dataclassType)
         return fieldNames;
@@ -550,7 +550,7 @@ QStringList getDataClassFieldNames(PyObject *dataclassType)
                 if (PyUnicode_Check(fieldNameObj)) {
                     const char *fieldName = Shiboken::String::toCString(fieldNameObj);
                     if (fieldName)
-                        fieldNames.append(QString::fromUtf8(fieldName));
+                        fieldNames.append(QByteArray(fieldName));
                 }
             }
             Py_XDECREF(keys);
