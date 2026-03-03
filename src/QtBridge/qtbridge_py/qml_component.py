@@ -7,8 +7,17 @@ import inspect
 from pathlib import Path
 from typing import Any
 
+import PySide6
 from PySide6.QtCore import QMetaMethod, QMetaObject, QUrl, Qt
-from PySide6.QtQml import QQmlComponent, QQmlEngine
+from PySide6.QtQml import QQmlComponent
+
+# create_withownership / createwithinitialproperties_withownership were added in
+# PySide6 6.11.  For 6.10 we fall back to the plain create() API and rely on
+# the caller keeping the returned QmlObject alive (e.g. via @qtbridge's
+# _keep_alive list populated by returning objects from the main() function).
+_PYSIDE6_HAS_OWNERSHIP_HELPERS: bool = (
+    tuple(int(x) for x in PySide6.__version__.split(".")[:2]) >= (6, 11)
+)
 
 try:
     from ._build_config import _logger
@@ -167,19 +176,25 @@ class QmlComponentFactory:
                 f"Errors: {component.errorString()}"
             )
 
-        if initial_properties:
-            obj = component.createWithInitialProperties(initial_properties)
+        if _PYSIDE6_HAS_OWNERSHIP_HELPERS:
+            # PySide6 >= 6.11: binding-level helpers return a Python owned
+            # wrapper; no manual keep-alive needed.
+            if initial_properties:
+                obj = component.createWithInitialProperties_withownership(initial_properties)
+            else:
+                obj = component.create_withownership()
         else:
-            obj = component.create()
+            # PySide6 6.10 fallback: use the standard create() API.
+            if initial_properties:
+                obj = component.createWithInitialProperties(initial_properties)
+            else:
+                obj = component.create()
 
         if obj is None:
             raise RuntimeError(
                 f"QQmlComponent.create() returned None. "
                 f"Errors: {component.errorString()}"
             )
-
-        # Prevent the QML engine from garbage-collecting our object
-        QQmlEngine.setObjectOwnership(obj, QQmlEngine.ObjectOwnership.CppOwnership)
 
         _logger.debug("Created QML object: %s", obj.metaObject().className())
         return QmlObject(obj, component)

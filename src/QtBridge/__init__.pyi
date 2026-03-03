@@ -363,11 +363,26 @@ def qtbridge(*, module: str | None = None, type_name: str | None = None, qml_fil
     import_paths : list[str], optional
         Additional import paths for QML modules.
 
-    Example
-    -------
-    ```python
-    from QtBridge import qtbridge, bridge_instance
+    Window parameter convention
+    ---------------------------
+    If the decorated function declares a single positional parameter, it is
+    treated as a *post-load* setup function and called automatically with the
+    root QML window (``engine.rootObjects()[0]``) after the engine finishes
+    loading.  This is the recommended pattern when the function only needs to
+    interact with the window:
 
+    ```python
+    @qtbridge(qml_file="Main.qml")
+    def main(window):
+        content = window.property("contentItem")
+        ...
+    ```
+
+    If the function takes **no** parameters it is called *before* loading so
+    that ``bridge_instance``/``bridge_type`` registrations are processed first
+    (the original behaviour):
+
+    ```python
     @qtbridge(module="Main")
     def main():
         data = ["Apple", "Banana", "Cherry"]

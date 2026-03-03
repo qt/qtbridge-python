@@ -21,12 +21,17 @@ except ImportError:
 # used for QML component factories
 _engine: QQmlApplicationEngine | None = None
 
+# Keeps QML-created objects alive on PySide6 < 6.11, where create() does not
+# transfer Python ownership.  Populated by the return value of the user's
+# @qtbridge main() function; cleared when the engine shuts down.
+# TODO: Remove this when PySide6 6.11+ is the minimum supported version
+_keep_alive: list = []
+
 
 def get_engine() -> QQmlApplicationEngine | None:
     """Return the QQmlApplicationEngine created by the active @qtbridge context,
     or None if no engine is currently running."""
     return _engine
-
 
 def qtbridge(
     *,
@@ -39,6 +44,10 @@ def qtbridge(
     Decorator that wraps a function into a QtBridges application context.
     """
     def decorator(func):
+        # Detect whether the user's function wants the root window as an argument.
+        _func_params = inspect.signature(func).parameters
+        _wants_window = len(_func_params) > 0
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             _logger.debug("Starting qtbridge application for function: %s", func.__name__)
@@ -67,7 +76,33 @@ def qtbridge(
             # Always add the script's own directory so sibling qmldirs are found.
             engine.addImportPath(str(caller_dir))
 
-            func(*args, **kwargs)
+            if not _wants_window:
+                # Standard case: call func() before load so bridge_instance/bridge_type
+                # registrations happen before the QML engine starts.
+                ret = func(*args, **kwargs)
+                if ret is not None:
+                    _keep_alive.append(ret)
+            else:
+                # Window case: func wants the root window, so defer the call until
+                # after engine.load() via objectCreated.
+
+                # Import QQuickItem here so Shiboken registers its QVariant converters
+                try:
+                    from PySide6.QtQuick import QQuickItem  # noqa: F401
+                except ImportError:
+                    pass  # QtQuick not available — user will get a runtime error if they use it
+
+                def _dispatch(root_obj, _url, _engine=engine, _func=func, _a=args, _kw=kwargs):
+                    if root_obj is None:
+                        return
+                    root_objects = _engine.rootObjects()
+                    if not root_objects:
+                        return
+                    ret = _func(root_objects[0], *_a, **_kw)
+                    if ret is not None:
+                        _keep_alive.append(ret)
+
+                engine.objectCreated.connect(_dispatch)
 
             # --- Load QML content ---
             if qml_file:
@@ -96,6 +131,7 @@ def qtbridge(
             result = app.exec()
             _logger.debug("Event loop exited with code: %s", result)
             _engine = None
+            _keep_alive.clear()
             del engine
             return result
         return wrapper
