@@ -18,6 +18,7 @@ except ImportError:
     _logger = logging.getLogger("qtbridge-python")
 
 def qtbridge(
+    *,
     module: str | None = None,
     type_name: str | None = None,
     qml_file: str | None = None,

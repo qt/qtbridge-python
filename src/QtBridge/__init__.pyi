@@ -1,7 +1,7 @@
 # Copyright (C) 2025 The Qt Company Ltd.
 # SPDX-License-Identifier: LicenseRef-Qt-Commercial OR LGPL-3.0-only
 
-from typing import Any, List, Protocol, overload
+from typing import Any, Protocol, overload
 from collections.abc import Callable
 
 
@@ -296,7 +296,48 @@ def remove(func: Callable[..., Any]) -> Callable[..., Any]:
     """
     ...
 
-def qtbridge(module: str | None = None, type_name: str | None = None, qml_file: str | None = None, import_paths: List[str] | None = None) -> Callable[[Callable[..., None]], Callable[..., None]]:
+@overload
+def qtbridge(*, qml_file: str, import_paths: list[str] | None = None) -> Callable[[Callable[..., None]], Callable[..., int]]:
+    """ Load a QML file from a ``.qml`` file path.
+
+    Parameters
+    ----------
+    qml_file : str
+        Path to a ``.qml`` file (absolute, or relative to the caller's script directory).
+    import_paths : list[str], optional
+        Additional QML import paths.
+    """
+    ...
+
+@overload
+def qtbridge(*, module: str, type_name: str, import_paths: list[str] | None = None) -> Callable[[Callable[..., None]], Callable[..., int]]:
+    """Load a specific QML type from a module.
+
+    Parameters
+    ----------
+    module : str
+        QML module URI (e.g. ``"Main"``).
+    type_name : str
+        Type name inside the QML module (e.g. ``"Window"``).
+    import_paths : list[str], optional
+        Additional QML import paths.
+    """
+    ...
+
+@overload
+def qtbridge(*, module: str, import_paths: list[str] | None = None) -> Callable[[Callable[..., None]], Callable[..., int]]:
+    """Load a QML module.
+
+    Parameters
+    ----------
+    module : str
+        QML module URI (e.g. ``"Main"``).
+    import_paths : list[str], optional
+        Additional QML import paths.
+    """
+    ...
+
+def qtbridge(*, module: str | None = None, type_name: str | None = None, qml_file: str | None = None, import_paths: list[str] | None = None) -> Callable[[Callable[..., None]], Callable[..., int]]:
     """
     Decorator that abstracts the calling of qml file/module.
 
