@@ -15,7 +15,7 @@ ApplicationWindow {
 
     // Neon accent colors
     property var accentColors: ["#FF6F61", "#64FFDA", "#82B1FF", "#FFAB40", "#EA80FC"]
-    property int currentIndex: Math.floor(Math.random() * QA_model.rowCount())
+    // Delegate index/score state to the Python model so @watch/@effect fire
     property bool showingAnswer: false
 
     // Dark background
@@ -38,7 +38,7 @@ ApplicationWindow {
 
             Text {
                 id: displayText
-                text: QA_model.getItem(currentIndex, 0)
+                text: QA_model.getItem(QA_model.current_index, 0)
                 anchors.centerIn: parent
                 width: parent.width * 0.9
                 wrapMode: Text.WordWrap
@@ -79,12 +79,15 @@ ApplicationWindow {
                     let idx = Math.floor(Math.random() * accentColors.length)
                     displayText.color = accentColors[idx]
 
-                    displayText.text = QA_model.getItem(currentIndex, 1)
+                    // reveal_answer() increments score on Python side → triggers @effect
+                    QA_model.reveal_answer()
+                    displayText.text = QA_model.getItem(QA_model.current_index, 1)
                     showingAnswer = true
                 } else {
                     displayText.color = "#E0E0E0"
-                    currentIndex = Math.floor(Math.random() * QA_model.rowCount())
-                    displayText.text = QA_model.getItem(currentIndex, 0)
+                    // next_question() advances current_index on Python side → triggers @watch
+                    QA_model.next_question()
+                    displayText.text = QA_model.getItem(QA_model.current_index, 0)
                     showingAnswer = false
                 }
             }

@@ -2,25 +2,27 @@
 # SPDX-License-Identifier: LicenseRef-Qt-Commercial OR BSD-3-Clause
 
 import sys
-from QtBridge import qtbridge, bridge_type, Signal
+from QtBridge import qtbridge, bridge_type, watch, effect, Change
+
 
 class CounterModel:
-    countChanged = Signal(int)
-
     def __init__(self):
-        self._count = 0
+        self.count = 0  # auto-property
 
-    @property
-    def count(self):
-        return self._count
+    @watch("count")
+    def _log_count_change(self, change: Change) -> None:
+        print(f"[watch] count changed: {change.old} → {change.new}")
 
-    @count.setter
-    def count(self, value: int):
-        if self._count != value:
-            print(f"CounterModel count changed from {self._count} to {value}")
-            self._count = value
-            # Manually emit the signal instead of using the auto property change notification
-            self.countChanged.emit(self._count)
+    @effect("count")
+    def _check_milestone(self) -> None:
+        milestones = {
+            5:  "High five! 🖐",
+            10: "Perfect ten! 🎯",
+            20: "Score of 20 — to the moon! 🚀",
+        }
+        if self.count in milestones:
+            print(f"[effect] Milestone: {milestones[self.count]}")
+
 
 @qtbridge(module="CounterModel")
 def main():
