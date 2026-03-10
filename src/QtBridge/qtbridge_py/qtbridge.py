@@ -11,6 +11,8 @@ from PySide6.QtCore import QUrl
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
+from .qml_component import QmlObject
+
 try:
     from ._build_config import _logger
 except ImportError:
@@ -98,7 +100,10 @@ def qtbridge(
                     root_objects = _engine.rootObjects()
                     if not root_objects:
                         return
-                    ret = _func(root_objects[0], *_a, **_kw)
+                    # Wrap the root window in QmlObject so the user can access
+                    # properties directly (e.g. window.contentItem, window.width)
+                    window = QmlObject(root_objects[0])
+                    ret = _func(window, *_a, **_kw)
                     if ret is not None:
                         _keep_alive.append(ret)
 

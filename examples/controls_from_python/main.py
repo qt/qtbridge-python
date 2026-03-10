@@ -36,37 +36,37 @@ def main(window):
     holds references on PySide6 < 6.11 (where QQmlComponent::create() does not 
     transfer Python ownership).  On 6.11+ this is not needed.
     """
-    content = window.property("contentItem") # drawable area inside the window
-    win_w = window.property("width")     # 420
-    
-    # Python controls
+    content = window.contentItem  # drawable area inside the window
+    win_w = window.width           # 420
+
+    # Python controls — properties are set directly on the QmlObject wrapper.
     heading = Label.create(text="Qt Controls — driven from Python")
-    heading.qobject.setProperty("parent", content)
-    heading.qobject.setProperty("x", 20)
-    heading.qobject.setProperty("y", 20)
+    heading.parent = content
+    heading.x = 20
+    heading.y = 20
 
     slider = Slider.create()
-    slider.qobject.setProperty("parent", content)
-    slider.qobject.setProperty("x", 20)
-    slider.qobject.setProperty("y", 70)
-    slider.qobject.setProperty("width", win_w - 40)
+    slider.parent = content
+    slider.x = 20
+    slider.y = 70
+    slider.width = win_w - 40
     # Slider range 0.0 – 1.0 (the default), step size 0.01
-    slider.qobject.setProperty("stepSize", 0.01)
+    slider.stepSize = 0.01
 
     value_label = Label.create(text="Value: 0.00")
-    value_label.qobject.setProperty("parent", content)
-    value_label.qobject.setProperty("x", 20)
-    value_label.qobject.setProperty("y", 130)
+    value_label.parent = content
+    value_label.x = 20
+    value_label.y = 130
 
     def on_value_changed() -> None:
         value_label.text = f"Value: {slider.value:.2f}"
 
-    slider.qobject.valueChanged.connect(on_value_changed)
+    slider.valueChanged.connect(on_value_changed)
 
     reset_btn = Button.create(text="Reset")
-    reset_btn.qobject.setProperty("parent", content)
-    reset_btn.qobject.setProperty("x", 20)
-    reset_btn.qobject.setProperty("y", 180)
+    reset_btn.parent = content
+    reset_btn.x = 20
+    reset_btn.y = 180
 
     status_label = Label.create(text="Status: animating…")
 
@@ -74,11 +74,11 @@ def main(window):
         slider.value = 0.0
         status_label.text = "Status: reset by Python"
 
-    reset_btn.qobject.clicked.connect(on_reset)
+    reset_btn.clicked.connect(on_reset)
 
-    status_label.qobject.setProperty("parent", content)
-    status_label.qobject.setProperty("x", 120)
-    status_label.qobject.setProperty("y", 184)
+    status_label.parent = content
+    status_label.x = 120
+    status_label.y = 184
 
     step = [0.0]
 

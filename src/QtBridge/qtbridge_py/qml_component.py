@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import PySide6
-from PySide6.QtCore import QMetaMethod, QMetaObject, QUrl, Qt
+from PySide6.QtCore import QMetaMethod, QMetaObject, QObject, QUrl, Qt
 from PySide6.QtQml import QQmlComponent
 
 # create_withownership / createwithinitialproperties_withownership were added in
@@ -71,28 +71,30 @@ class QmlObject:
         qobj = object.__getattribute__(self, "_qobj")
         methods = object.__getattribute__(self, "_methods")
 
-        # Check if it's a known QML method
+        # Q_PROPERTY lookup must come first so typed Qt properties like
+        # `width` or `height` return their actual value (int/float) rather
+        # than the C++ getter bound method
+        meta = qobj.metaObject()
+        idx = meta.indexOfProperty(name)
+        if idx >= 0:
+            val = qobj.property(name)
+            # Auto-wrap QObject-typed return values so that chained access
+            # like window.contentItem.x and heading.parent = window.contentItem
+            # both work without needing .qobject or .property() calls.
+            if isinstance(val, QObject):
+                return QmlObject(val)
+            return val
+
         if name in methods:
             cache = object.__getattribute__(self, "_method_cache")
             if name not in cache:
                 cache[name] = _MethodInvoker(qobj, name)
             return cache[name]
 
-        # Try signal access: return the PySide6 bound signal directly.
-        # PySide6 signals already expose connect(), disconnect(), and emit(),
-        # matching the QtBridge.SignalInstance interface.  These are pre-existing
-        # signals declared in QML. So this is fine since we don't enable the user
-        # to modify them from Python, just connect to them.
         try:
             return getattr(qobj, name)
         except AttributeError:
             pass
-
-        # Fall back to QObject.property() for QML defined Q_PROPERTYs
-        meta = qobj.metaObject()
-        idx = meta.indexOfProperty(name)
-        if idx >= 0:
-            return qobj.property(name)
 
         raise AttributeError(
             f"'{type(self).__name__}' object has no attribute '{name}'"
@@ -108,7 +110,10 @@ class QmlObject:
         meta = qobj.metaObject()
         idx = meta.indexOfProperty(name)
         if idx >= 0:
-            if not qobj.setProperty(name, value):
+            # Auto-unwrap QmlObject values so that, e.g.,
+            # ``label.parent = column`` works when ``column`` is a QmlObject.
+            actual_value = object.__getattribute__(value, "_qobj") if isinstance(value, QmlObject) else value
+            if not qobj.setProperty(name, actual_value):
                 _logger.warning("setProperty('%s', %r) returned False", name, value)
             return
 

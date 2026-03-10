@@ -33,6 +33,15 @@ QtObject {
 }
 """
 
+VAR_PROPS_QML = """\
+import QtQuick
+
+QtObject {
+    property var items: []
+    property var metadata: ({})
+}
+"""
+
 # TODO: Use fixtures for the other tests as well
 @pytest.fixture(scope="session")
 def app():
@@ -69,6 +78,13 @@ def person_qml(tmp_path: Path) -> Path:
 def simple_qml(tmp_path: Path) -> Path:
     p = tmp_path / "simple.qml"
     p.write_text(SIMPLE_QML)
+    return p
+
+
+@pytest.fixture()
+def var_props_qml(tmp_path: Path) -> Path:
+    p = tmp_path / "var_props.qml"
+    p.write_text(VAR_PROPS_QML)
     return p
 
 
@@ -215,3 +231,62 @@ class TestQmlComponentErrors:
         obj = factory.create()
         obj._custom = 42
         assert obj._custom == 42
+
+
+class TestQmlObjectVariantProperties:
+    """Test assigning Python lists and dicts to QML 'property var' properties.
+    """
+
+    def test_assign_list_of_ints(self, qml_engine, var_props_qml: Path):
+        obj = load_qml_component(str(var_props_qml)).create()
+        obj.items = [1, 2, 3]
+        result = obj.items
+        assert list(result) == [1, 2, 3]
+
+    def test_assign_list_of_strings(self, qml_engine, var_props_qml: Path):
+        obj = load_qml_component(str(var_props_qml)).create()
+        obj.items = ["a", "b", "c"]
+        result = obj.items
+        assert list(result) == ["a", "b", "c"]
+
+    def test_assign_mixed_list(self, qml_engine, var_props_qml: Path):
+        obj = load_qml_component(str(var_props_qml)).create()
+        obj.items = [1, "two", 3.0, True]
+        result = obj.items
+        assert list(result) == [1, "two", 3.0, True]
+
+    def test_assign_empty_list(self, qml_engine, var_props_qml: Path):
+        obj = load_qml_component(str(var_props_qml)).create()
+        obj.items = []
+        result = obj.items
+        assert list(result) == []
+
+    def test_assign_dict(self, qml_engine, var_props_qml: Path):
+        obj = load_qml_component(str(var_props_qml)).create()
+        obj.metadata = {"key": "value", "count": 42}
+        result = obj.metadata
+        assert result["key"] == "value"
+        assert result["count"] == 42
+
+    def test_assign_empty_dict(self, qml_engine, var_props_qml: Path):
+        obj = load_qml_component(str(var_props_qml)).create()
+        obj.metadata = {}
+        result = obj.metadata
+        assert dict(result) == {}
+
+    def test_reassign_list(self, qml_engine, var_props_qml: Path):
+        """Verify that re-assigning a list property replaces the value."""
+        obj = load_qml_component(str(var_props_qml)).create()
+        obj.items = [10, 20]
+        obj.items = [30, 40, 50]
+        assert list(obj.items) == [30, 40, 50]
+
+    def test_reassign_dict(self, qml_engine, var_props_qml: Path):
+        """Verify that re-assigning a dict property replaces the value."""
+        obj = load_qml_component(str(var_props_qml)).create()
+        obj.metadata = {"x": 1}
+        obj.metadata = {"y": 2, "z": 3}
+        result = obj.metadata
+        assert "x" not in result
+        assert result["y"] == 2
+        assert result["z"] == 3
