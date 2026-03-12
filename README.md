@@ -1,6 +1,6 @@
 # Qt Bridge - Python - Pre Release
 
-> Copyright (C) 2025 The Qt Company Ltd.
+> Copyright (C) 2026 The Qt Company Ltd.
 > SPDX-License-Identifier: LicenseRef-Qt-Commercial OR LGPL-3.0-only
 
 ## About
@@ -9,7 +9,8 @@ Qt Bridges is a framework that simplifies the integration of Python with
 [QtQuick/QML](https://doc.qt.io/qt-6/qtquick-index.html). It connects Python backends to QML
 frontends, improving development efficiency. The framework offers an easy, declarative method for
 linking Python classes, properties, signals, and slots to QML, with minimal Qt knowledge required
-from the Python developer.
+from the Python developer. Additionally, it also enables the Python user to completely control
+QtQuick/QML components from Python, without needing to write any QML code.
 
 ### Why a Python Qt Bridge?
 
@@ -77,6 +78,16 @@ pip install -e ".[dev]"
 ```
 pytest .
 ```
+
+### Building the documentation
+
+```bash
+cd docs
+pip install -r requirements.txt
+make html
+```
+
+Open `docs/_build/html/index.html` in a browser to view the result.
 
 ## Examples
 

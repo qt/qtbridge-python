@@ -48,6 +48,13 @@ dev = [
 table = [
     "polars"
 ]
+docs = [
+    "sphinx>=7.3,<9",  # getting rid of warning
+    "furo>=2025.12.19",
+    "myst-parser>=3.0",
+    "sphinx-copybutton>=0.5",
+    "sphinx-autodoc-typehints>=2.0",
+]
 
 
 [tool.pytest.ini_options]

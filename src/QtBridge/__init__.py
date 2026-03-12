@@ -124,4 +124,10 @@ def __getattr__(name: str) -> Any:
         return effect
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
-__all__ = ["bridge_instance", "bridge_type", "insert", "remove", "move", "edit", "reset", "complete", "Signal", "qtbridge", "cpython_bridge_instance", "cpython_bridge_type", "load_qml_component", "QmlObject", "QmlComponentFactory", "watch", "effect", "Change"]
+# if this is updated, update docs/conf.py's _docs_mod.__all__ as well
+__all__ = [
+    "bridge_instance", "bridge_type", "insert", "remove", "move", "edit",
+    "reset", "complete", "Signal", "qtbridge", "cpython_bridge_instance",
+    "cpython_bridge_type", "load_qml_component", "QmlObject",
+    "QmlComponentFactory", "watch", "effect", "Change",
+]

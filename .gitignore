@@ -53,6 +53,8 @@ coverage.xml
 
 # Sphinx documentation
 docs/_build/
+# Copied example READMEs (generated during docs build)
+docs/examples/*/
 
 # pyenv
 .python-version
