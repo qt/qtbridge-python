@@ -98,9 +98,8 @@ autodoc_default_options = {
     "undoc-members": True,
     "show-inheritance": True,
 }
-autodoc_typehints = "description"
-autodoc_typehints_description_target = "documented"
-always_document_param_types = True
+autodoc_typehints = "signature"
+always_document_param_types = False
 
 # https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html
 # Napoleon (Google/NumPy docstrings)

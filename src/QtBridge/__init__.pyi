@@ -43,8 +43,8 @@ def bridge_instance(instance: DataProvider, name: str, uri: str = "backend", aut
     Parameters
     ----------
     instance : DataProvider
-        A Python class instance that implements a `data()` method returning
-        the data structure to expose to QML. Any object with a `data()` method
+        A Python class instance that implements a ``data()`` method returning
+        the data structure to expose to QML. Any object with a ``data()`` method
         satisfies this requirement.
     name : str
         The QML model name (must start with an uppercase letter).
@@ -60,29 +60,30 @@ def bridge_instance(instance: DataProvider, name: str, uri: str = "backend", aut
 
     Example
     -------
-    ```python
-    from QtBridge import bridge_instance
+    .. code-block:: python
 
-    class StringModel:
-        def __init__(self):
-            self._items = ["Apple", "Banana", "Cherry"]
+        from QtBridge import bridge_instance
 
-        def data(self) -> list[str]:
-            return self._items
+        class StringModel:
+            def __init__(self):
+                self._items = ["Apple", "Banana", "Cherry"]
 
-    model = StringModel()
-    bridge_instance(model, name="String_model")
-    ```
+            def data(self) -> list[str]:
+                return self._items
+
+        model = StringModel()
+        bridge_instance(model, name="String_model")
 
     In QML:
-    ```qml
-    import backend 1.0
 
-    ListView {
-        model: String_model
-        delegate: Text { text: display }
-    }
-    ```
+    .. code-block:: qml
+
+        import backend 1.0
+
+        ListView {
+            model: String_model
+            delegate: Text { text: display }
+        }
     """
     ...
 
@@ -92,7 +93,7 @@ def bridge_instance(obj: Any, name: str, uri: str = "backend", auto_properties: 
     Exposes Python containers (list, tuple, or numpy.ndarray) as a QML
     singleton instance.
 
-    The container is wrapped in a `QRangeModel`, providing a model accessible
+    The container is wrapped in a ``QRangeModel``, providing a model accessible
     from QML. This overload is useful for simple data structures that don't
     require a custom class implementation.
 
@@ -101,7 +102,7 @@ def bridge_instance(obj: Any, name: str, uri: str = "backend", auto_properties: 
     obj : Any
         The Python container to expose to QML. Supports list, tuple,, and
         numpy.ndarray (if numpy is installed). The container's
-        elements will be accessible via the `display` role in QML.
+        elements will be accessible via the ``display`` role in QML.
     name : str
         The QML model name (must start with an uppercase letter).
     uri : str, optional
@@ -116,26 +117,27 @@ def bridge_instance(obj: Any, name: str, uri: str = "backend", auto_properties: 
 
     Example
     -------
-    ```python
-    from QtBridge import bridge_instance
+    .. code-block:: python
 
-    # Simple list
-    bridge_instance(["A", "B", "C"], name="MyList")
+        from QtBridge import bridge_instance
 
-    # Numpy array (if numpy is installed)
-    import numpy as np
-    bridge_instance(np.array([1, 2, 3]), name="MyArray")
-    ```
+        # Simple list
+        bridge_instance(["A", "B", "C"], name="MyList")
+
+        # Numpy array (if numpy is installed)
+        import numpy as np
+        bridge_instance(np.array([1, 2, 3]), name="MyArray")
 
     In QML:
-    ```qml
-    import backend 1.0
 
-    ListView {
-        model: MyList
-        delegate: Text { text: display }
-    }
-    ```
+    .. code-block:: qml
+
+        import backend 1.0
+
+        ListView {
+            model: MyList
+            delegate: Text { text: display }
+        }
     """
     ...
 
@@ -150,7 +152,7 @@ def bridge_type(type: type, uri: str | None = None, version: str | None = None, 
     uri : str, optional
         The QML module name under which the type will be available.
     version : str, optional
-        QML version in `"major.minor"` format, e.g. `"1.0"`.
+        QML version in ``"major.minor"`` format, e.g. ``"1.0"``.
     name : str, optional
         Custom name to use for the QML type. Defaults to the Python
         class name if not provided.
@@ -171,22 +173,23 @@ def insert(func: Callable[..., Any]) -> Callable[..., Any]:
     Decorator that marks a method as an *insert* operation for QML-bound
     list or table models.
 
-    Methods decorated with `@insert` are automatically recognized
+    Methods decorated with ``@insert`` are automatically recognized
     by the Qt bridge as functions responsible for adding new elements
     to a model exposed to QML. The decorated method triggers
-    `beginInsertRows()` and `endInsertRows()` of Qt automatically.
+    ``beginInsertRows()`` and ``endInsertRows()`` of Qt automatically.
 
     Parameters
     ----------
     func : Callable
         The function that implements the insert behavior.
 
-    Keyword Arguments (when calling the decorated method)
-    -----------------------------------------------------
-    index : int, optional
-        The position at which to insert the item. If not provided,
-        the item is appended to the end. When provided, inserts at
-        the specified position.
+    Notes
+    -----
+    When calling the decorated method you may pass the following keyword
+    argument:
+
+    - ``index`` (int, optional): Position at which to insert the item. If
+      not provided the item is appended to the end.
 
     Example
     -------
@@ -205,21 +208,22 @@ def move(func: Callable[..., Any]) -> Callable[..., Any]:
     Decorator that marks a method as a *move* operation for QML-bound
     models.
 
-    Methods decorated with `@move` allow elements in a list or table to
+    Methods decorated with ``@move`` allow elements in a list or table to
     be rearranged from QML. The decorated method triggers
-    `beginMoveRows()` and `endMoveRows()` of Qt automatically.
+    ``beginMoveRows()`` and ``endMoveRows()`` of Qt automatically.
 
     Parameters
     ----------
     func : Callable
         The function implementing the move behavior.
 
-    Keyword/Positional Arguments (when calling the decorated method)
-    ----------------------------------------------------------------
-    from_index : int
-        The source position of the item to move (can be positional or keyword)
-    to_index : int
-        The destination position for the item (can be positional or keyword)
+    Notes
+    -----
+    When calling the decorated method you may pass the following arguments
+    (positional or keyword):
+
+    - ``from_index`` (int): The source position of the item to move.
+    - ``to_index`` (int): The destination position for the item.
 
     Example
     -------
@@ -239,21 +243,22 @@ def edit(func: Callable[..., Any]) -> Callable[..., Any]:
     Decorator that marks a method as an *edit* operation for QML-bound
     models.
 
-    Methods decorated with `@edit` are recognized by the Qt bridge
+    Methods decorated with ``@edit`` are recognized by the Qt bridge
     as update operations for modifying existing data in the model.
-    The decorated method triggers `dataChanged()` of Qt automatically.
+    The decorated method triggers ``dataChanged()`` of Qt automatically.
 
     Parameters
     ----------
     func : Callable
         The function implementing the edit logic.
 
-    Keyword/Positional Arguments (when calling the decorated method)
-    ----------------------------------------------------------------
-    index : int
-        The position of the item to edit (can be positional or keyword)
-    *args : Any
-        Additional arguments for the new values
+    Notes
+    -----
+    When calling the decorated method you may pass the following arguments
+    (positional or keyword):
+
+    - ``index`` (int): The position of the item to edit.
+    - Additional positional arguments supply the new field values.
 
     Example
     -------
@@ -272,19 +277,21 @@ def remove(func: Callable[..., Any]) -> Callable[..., Any]:
     Decorator that marks a method as a *remove* operation for QML-bound
     list or table models.
 
-    Methods decorated with `@remove` are exposed to QML as callable
+    Methods decorated with ``@remove`` are exposed to QML as callable
     slots that handle item removal. The decorated method triggers
-    `beginRemoveRows()` and `endRemoveRows()` of Qt automatically.
+    ``beginRemoveRows()`` and ``endRemoveRows()`` of Qt automatically.
 
     Parameters
     ----------
     func : Callable
         The function that removes an element from the model.
 
-    Keyword/Positional Arguments (when calling the decorated method)
-    ----------------------------------------------------------------
-    index : int
-        The position of the item to remove (can be positional or keyword)
+    Notes
+    -----
+    When calling the decorated method you may pass the following argument
+    (positional or keyword):
+
+    - ``index`` (int): The position of the item to remove.
 
     Example
     -------
@@ -343,16 +350,16 @@ def qtbridge(*, module: str | None = None, type_name: str | None = None, qml_fil
     """
     Decorator that abstracts the calling of qml file/module.
 
-    The `@qtbridge` decorator transforms a normal Python function into an entry
-    point for a QML-based application. It initializes the `QGuiApplication`,
-    creates a `QQmlApplicationEngine`, loads the QML file/module, and starts
+    The ``@qtbridge`` decorator transforms a normal Python function into an entry
+    point for a QML-based application. It initializes the ``QGuiApplication``,
+    creates a ``QQmlApplicationEngine``, loads the QML file/module, and starts
     the Qt event loop.
 
     Parameters
     ----------
     module : str, optional
-        The name of a QML module to load (e.g. `"Main"`).
-        Example: `engine.loadFromModule("Main", "Window")`
+        The name of a QML module to load (e.g. ``"Main"``).
+        Example: ``engine.loadFromModule("Main", "Window")``
 
     type_name : str, optional
         Specific QML type to load from the given module.
@@ -371,26 +378,26 @@ def qtbridge(*, module: str | None = None, type_name: str | None = None, qml_fil
     loading.  This is the recommended pattern when the function only needs to
     interact with the window:
 
-    ```python
-    @qtbridge(qml_file="Main.qml")
-    def main(window):
-        content = window.property("contentItem")
-        ...
-    ```
+    .. code-block:: python
+
+        @qtbridge(qml_file="Main.qml")
+        def main(window):
+            content = window.property("contentItem")
+            ...
 
     If the function takes **no** parameters it is called *before* loading so
     that ``bridge_instance``/``bridge_type`` registrations are processed first
     (the original behaviour):
 
-    ```python
-    @qtbridge(module="Main")
-    def main():
-        data = ["Apple", "Banana", "Cherry"]
-        bridge_instance(data, name="FruitModel")
+    .. code-block:: python
 
-    if __name__ == "__main__":
-        main()
-    ```
+        @qtbridge(module="Main")
+        def main():
+            data = ["Apple", "Banana", "Cherry"]
+            bridge_instance(data, name="FruitModel")
+
+        if __name__ == "__main__":
+            main()
     """
     ...
 
@@ -399,9 +406,9 @@ def reset(func: Callable[..., Any]) -> Callable[..., Any]:
     Decorator that marks a method as a *reset* operation for QML-bound
     models.
 
-    Methods decorated with `@reset` are used to refresh or completely
+    Methods decorated with ``@reset`` are used to refresh or completely
     reload the data in the model from QML. The decorated method triggers
-    `beginResetModel()` and `endResetModel()` of Qt automatically.
+    ``beginResetModel()`` and ``endResetModel()`` of Qt automatically.
 
     Use this when the entire model contents need to be replaced, such as
     loading new data from a database or API.
@@ -442,7 +449,7 @@ def complete(func: Callable[..., Any]) -> Callable[..., Any]:
     ----------
     func : Callable
         The initialization method to be called when the component is complete.
-        Takes no arguments besides `self`.
+        Takes no arguments besides ``self``.
 
     Notes
     -----
@@ -480,14 +487,16 @@ def complete(func: Callable[..., Any]) -> Callable[..., Any]:
     >>> bridge_type(RestService, uri="backend", version="1.0")
 
     In QML:
-    >>> # RestService QML instantiation
-    >>> import backend 1.0
-    >>>
-    >>> RestService {
-    ...     url: "https://api.example.com"
-    ...     // componentComplete() is called here automatically
-    ...     // after url property is set
-    ... }
+
+    .. code-block:: qml
+
+        import backend 1.0
+
+        RestService {
+            url: "https://api.example.com"
+            // componentComplete() is called here automatically
+            // after url property is set
+        }
     """
     ...
 
@@ -525,7 +534,7 @@ class QmlComponentFactory:
 
         Parameters
         ----------
-        **initial_properties
+        \\*\\*initial_properties
             Property values to set during construction.
 
         Returns
@@ -615,25 +624,25 @@ def load_qml_component(source: str | None = None, *, module: str | None = None, 
 
     Example
     -------
-    ```python
-    from QtBridge import load_qml_component, qtbridge
+    .. code-block:: python
 
-    Person = load_qml_component("person.qml")
+        from QtBridge import load_qml_component, qtbridge
 
-    class Employee:
-        def __init__(self, name, age, department):
-            self.person = Person.create(name=name, age=age)
-            self.department = department
-            self.person.birthdayHappened.connect(self.on_birthday)
+        Person = load_qml_component("person.qml")
 
-        def on_birthday(self):
-            print(f"{self.person.name} is now {self.person.age}!")
+        class Employee:
+            def __init__(self, name, age, department):
+                self.person = Person.create(name=name, age=age)
+                self.department = department
+                self.person.birthdayHappened.connect(self.on_birthday)
 
-    @qtbridge(module="Main")
-    def main():
-        emp = Employee("Alice", 28, "Engineering")
-        emp.person.celebrateBirthday()  # Alice is now 29!
-    ```
+            def on_birthday(self):
+                print(f"{self.person.name} is now {self.person.age}!")
+
+        @qtbridge(module="Main")
+        def main():
+            emp = Employee("Alice", 28, "Engineering")
+            emp.person.celebrateBirthday()  # Alice is now 29!
     """
     ...
 
@@ -641,22 +650,15 @@ def load_qml_component(source: str | None = None, *, module: str | None = None, 
 class Change:
     """
     Describes a single property-value change, passed to ``@watch`` callbacks.
-
-    Attributes
-    ----------
-    name : str
-        The name of the property that changed.
-    old : Any
-        The value before the change.
-    new : Any
-        The value after the change.
-    owner : Any
-        The object instance whose property changed.
     """
     name: str
+    """The name of the property that changed."""
     old: Any
+    """The value before the change."""
     new: Any
+    """The value after the change."""
     owner: Any
+    """The object instance whose property changed."""
     def __init__(self, name: str, old: Any, new: Any, owner: Any) -> None: ...
 
 
@@ -680,17 +682,17 @@ def watch(property_name: str) -> Callable[[Callable[..., Any]], Callable[..., An
 
     Example
     -------
-    ```python
-    from QtBridge import watch, Change
+    .. code-block:: python
 
-    class Settings:
-        def __init__(self):
-            self.theme = "dark"
+        from QtBridge import watch, Change
 
-        @watch("theme")
-        def on_theme_change(self, change: Change):
-            print(f"Theme changed: {change.old!r} → {change.new!r}")
-    ```
+        class Settings:
+            def __init__(self):
+                self.theme = "dark"
+
+            @watch("theme")
+            def on_theme_change(self, change: Change):
+                print(f"Theme changed: {change.old!r} \u2192 {change.new!r}")
     """
     ...
 
@@ -705,7 +707,7 @@ def effect(*property_names: str) -> Callable[[Callable[..., Any]], Callable[...,
 
     Parameters
     ----------
-    *property_names : str
+    \\*property_names : str
         One or more auto-property names to observe.
 
     Raises
@@ -715,17 +717,17 @@ def effect(*property_names: str) -> Callable[[Callable[..., Any]], Callable[...,
 
     Example
     -------
-    ```python
-    from QtBridge import effect
+    .. code-block:: python
 
-    class Settings:
-        def __init__(self):
-            self.theme = "dark"
-            self.font_size = 14
+        from QtBridge import effect
 
-        @effect("theme", "font_size")
-        def persist(self):
-            save_to_disk({"theme": self.theme, "font_size": self.font_size})
-    ```
+        class Settings:
+            def __init__(self):
+                self.theme = "dark"
+                self.font_size = 14
+
+            @effect("theme", "font_size")
+            def persist(self):
+                save_to_disk({"theme": self.theme, "font_size": self.font_size})
     """
     ...
