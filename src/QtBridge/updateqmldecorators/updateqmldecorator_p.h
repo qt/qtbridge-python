@@ -22,6 +22,7 @@ public:
 protected:
     PyObject *m_wrapped_func = nullptr;
     PyObject *m_backend_instance = nullptr;
+    bool m_col = false; // column parameter for decorators
 };
 
 // Concrete decorator for 'insert'

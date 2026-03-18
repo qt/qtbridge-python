@@ -46,6 +46,8 @@ public:
     // public wrappers for model updates
     void startInsert(int first, int last);
     void finishInsert();
+    void startInsertCol(int first, int last);
+    void finishInsertCol();
     void startRemove(int first, int last);
     void finishRemove();
     void startMove(int sourceFirst, int sourceLast, int destinationRow);

@@ -875,6 +875,17 @@ void AutoQmlBridgeModel::finishInsert()
     endInsertRows();
 }
 
+void AutoQmlBridgeModel::startInsertCol(int first, int last)
+{
+    beginInsertColumns(QModelIndex(), first, last);
+}
+
+void AutoQmlBridgeModel::finishInsertCol()
+{
+    endInsertColumns();
+    setupDictRoles();
+}
+
 void AutoQmlBridgeModel::startRemove(int first, int last)
 {
     beginRemoveRows(QModelIndex(), first, last);

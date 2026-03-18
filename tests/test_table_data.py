@@ -400,3 +400,160 @@ Item {
             f"Expected BT_INS_NAME0=Carol, got: {self.captured_messages}"
         assert any("BT_INS_SCORE0=77" in m for m in self.captured_messages), \
             f"Expected BT_INS_SCORE0=77, got: {self.captured_messages}"
+
+
+class TestQAIMDecoratorsTable:
+    """Test QAbstractItemModel decorators (@insert, @remove, @move, @edit) behavior"""
+
+    def setup_method(self):
+        self.engine = QQmlApplicationEngine()
+        self.captured_messages: list[str] = []
+
+    def teardown_method(self):
+        if self.engine:
+            del self.engine
+            self.engine = None
+        qInstallMessageHandler(None)
+
+    def message_handler(self, msg_type, context, message):
+        self.captured_messages.append(message)
+
+    def test_insert_column(self, qtbot):
+        """Test @insert(col=True) adds a new column"""
+
+        class DictModel:
+            def __init__(self):
+                self._rows = [
+                    {"name": "Apple", "color": "Red"},
+                    {"name": "Banana", "color": "Yellow"},
+                ]
+
+            @insert(col=True)
+            def add_column(self, value: str):
+                for row in self._rows:
+                    row[value] = ""
+                return True
+
+            def data(self) -> list[dict]:
+                return self._rows
+
+        model = DictModel()
+        bridge_instance(model, name="DictModel")
+
+        qml_content = """
+        import QtQuick 2.0
+        import backend 1.0
+
+        Item {
+            Component.onCompleted: {
+                DictModel.add_column("price")
+            }
+        }
+        """
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.qml', delete=False) as f:
+            f.write(qml_content)
+            qml_path = f.name
+
+        try:
+            self.engine.load(QUrl.fromLocalFile(qml_path))
+            qtbot.waitUntil(lambda: bool(self.engine.rootObjects()), timeout=2000)
+
+            # Should insert the column as a key
+            keys = list(model.data()[0].keys())
+            assert keys == ["name", "color", "price"]
+        finally:
+            os.unlink(qml_path)
+
+    def test_insert_column_at_specific_position(self, qtbot):
+        """Test @insert(col=True) inserts column at specific index"""
+
+        class PositionDictModel:
+            def __init__(self):
+                self._rows = [
+                    {"first": "Apple", "last": "Red"},
+                    {"first": "Banana", "last": "Yellow"},
+                ]
+
+            @insert(col=True)
+            def add_column(self, value: str, index: int = -1):
+                for row in self._rows:
+                    if index < 0 or index >= len(row):
+                        row[value] = ""
+                    else:
+                        items = list(row.items())
+                        items.insert(index, (value, ""))
+                        row.clear()
+                        row.update(items)
+                return True
+
+            def data(self) -> list[dict]:
+                return self._rows
+
+        model = PositionDictModel()
+        bridge_instance(model, name="PositionDictModel")
+
+        qml_content = """
+        import QtQuick 2.0
+        import backend 1.0
+
+        Item {
+            Component.onCompleted: {
+                PositionDictModel.add_column("middle", 1)
+            }
+        }
+        """
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.qml', delete=False) as f:
+            f.write(qml_content)
+            qml_path = f.name
+        try:
+            self.engine.load(QUrl.fromLocalFile(qml_path))
+            qtbot.waitUntil(lambda: bool(self.engine.rootObjects()), timeout=2000)
+
+            # Should insert at the specified index
+            keys = list(model.data()[0].keys())
+            assert keys == ["first", "middle", "last"]
+        finally:
+            os.unlink(qml_path)
+
+    def test_insert_row_with_explicit_col_false(self, qtbot):
+        """Test @insert(col=False) appends a row"""
+
+        class ListModel:
+            def __init__(self):
+                self._items = ["A", "B"]
+
+            @insert(col=False)
+            def add_item(self, value: str):
+                self._items.append(value)
+                return True
+
+            def data(self) -> list[str]:
+                return self._items
+
+        model = ListModel()
+        bridge_instance(model, name="ListModel")
+
+        qml_content = """
+        import QtQuick 2.0
+        import backend 1.0
+
+        Item {
+            Component.onCompleted: {
+                ListModel.add_item("C")
+            }
+        }
+        """
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.qml', delete=False) as f:
+            f.write(qml_content)
+            qml_path = f.name
+        try:
+            self.engine.load(QUrl.fromLocalFile(qml_path))
+            qtbot.waitUntil(lambda: bool(self.engine.rootObjects()), timeout=2000)
+
+            # Should insert to the row
+            assert model.data() == ["A", "B", "C"]
+        finally:
+            os.unlink(qml_path)

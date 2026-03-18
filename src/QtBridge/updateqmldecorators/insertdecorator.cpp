@@ -13,6 +13,23 @@ namespace QtBridges {
 
 PyObject* InsertDecoratorPrivate::tp_call(PyObject* self, PyObject* args, PyObject* kwds)
 {
+    // Parameterized decorator — func not yet stored, receive it now
+    if (!this->m_wrapped_func) {
+        PyObject *func{};
+        if (!PyArg_UnpackTuple(args, "insert", 1, 1, &func))
+            return nullptr;
+
+        if (!PyCallable_Check(func)) {
+            PyErr_Format(PyExc_TypeError, "@insert can only decorate callable objects, got %s",
+                         Py_TYPE(func)->tp_name);
+            return nullptr;
+        }
+        Py_INCREF(func);
+        this->m_wrapped_func = func;
+        Py_INCREF(self);
+        return self;
+    }
+
     if (!validateDecoratorState(this, "insert")) {
         logPythonException("@insert - Invalid decorator state");
         return nullptr;
@@ -46,17 +63,19 @@ PyObject* InsertDecoratorPrivate::tp_call(PyObject* self, PyObject* args, PyObje
         }
     } else {
         // append at end
-        index = model->rowCount(QModelIndex());
+        index = m_col ? model->columnCount() : model->rowCount();
         qCDebug(lcQtBridge, "No index provided to insert; appending at end.");
     }
 
-    model->startInsert(index, index);
+    m_col ? model->startInsertCol(index, index) : model->startInsert(index, index);
+
     qCDebug(lcQtBridge, "Starting insert at index: %ld", index);
 
     // Call the original function
     PyObject* result = PyObject_Call(bound_method.object(), args, kwds);
 
-    model->finishInsert();
+    m_col ? model->finishInsertCol() : model->finishInsert();
+
     if (!result) {
         if (PyErr_Occurred()) {
             logPythonException("@insert - Error in wrapped function");
@@ -70,14 +89,26 @@ PyObject* InsertDecoratorPrivate::tp_call(PyObject* self, PyObject* args, PyObje
 
 int InsertDecoratorPrivate::tp_init(PyObject *self, PyObject *args, PyObject *kwds)
 {
-    if (initDecoratorCommon(self, args, "insert") != 0) {
+    static char col_kw[] = "col";
+    static char *keywords[] = {col_kw, nullptr};
+    int col = 0; // Default is false
+
+    const int initResult = initDecoratorCommon(self, args, "insert");
+
+    if (initResult < 0)
         return -1;
-    }
+    else if (initResult == 1)
+        PyArg_ParseTupleAndKeywords(args, kwds, "|p", keywords, &col);
+
+    this->m_col = col;
 
     PyObject *func{};
-    PyArg_UnpackTuple(args, "insert", 1, 1, &func);
-    Py_INCREF(func);
-    this->m_wrapped_func = func;
+    PyArg_UnpackTuple(args, "insert", 0, 1, &func);
+
+    if (func) {
+        Py_INCREF(func);
+        this->m_wrapped_func = func;
+    }
     return 0;
 }
 

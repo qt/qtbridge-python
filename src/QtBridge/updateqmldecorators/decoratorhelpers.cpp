@@ -39,12 +39,21 @@ bool validateDecoratorState(UpdateQMLDecoratorPrivate* decorator, const char* de
     return true;
 }
 
+// Returns:
+//  -1 — error, PyErr is set
+//   0 — callable found in args, plain @insert (function passed as positional arg via tp_init)
+//   1 — no positional arg in tp_init, parameterized path @insert(col=True/False)
+//       function arrives later as positional arg in tp_call
 int initDecoratorCommon(PyObject* /*self*/, PyObject* args, const char* decorator_name)
 {
     PyObject *func{};
-    if (!PyArg_UnpackTuple(args, decorator_name, 1, 1, &func)) {
+    if (!PyArg_UnpackTuple(args, decorator_name, 0, 1, &func))
         return -1;
-    }
+
+    // Parameterized decorator: @insert(col=True/False) passes only a keyword arg to tp_init,
+    // so args is empty and func is nullptr here. The function arrives in tp_call instead.
+    if (!func)
+        return 1;
 
     if (!PyCallable_Check(func)) {
         PyErr_Format(PyExc_TypeError, "@%s can only decorate callable objects, got %s",
