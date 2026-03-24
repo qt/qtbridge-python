@@ -1,0 +1,41 @@
+module ToyCustomizer
+
+Main 1.0 Main.qml
+
+singleton ApplicationConfig 1.0 ApplicationConfig.qml
+singleton AccessoryState 1.0 AccessoryState.qml
+AccessoryMaterialLibrary 1.0 AccessoryMaterialLibrary.qml
+AccessoryView 1.0 AccessoryView.qml
+AnimationMaterial 1.0 AnimationMaterial.qml
+BodyAccessories 1.0 BodyAccessories.qml
+ColorButton 1.0 ColorButton.qml
+ColorIcon 1.0 ColorIcon.qml
+CurrentToyModel 1.0 CurrentToyModel.qml
+CustomizationCard 1.0 CustomizationCard.qml
+CustomModel 1.0 CustomModel.qml
+EyesAccessories 1.0 EyesAccessories.qml
+EyewearAccessories 1.0 EyewearAccessories.qml
+GalleryViewDelegate 1.0 GalleryViewDelegate.qml
+HeadwearAccessories 1.0 HeadwearAccessories.qml
+MainPage 1.0 MainPage.qml
+MaximizeView 1.0 MaximizeView.qml
+MouthAccessories 1.0 MouthAccessories.qml
+NameTumbler 1.0 NameTumbler.qml
+OrbitCameraController 1.0 OrbitCameraController.qml
+OrderGrid 1.0 OrderGrid.qml
+OrderItem 1.0 OrderItem.qml
+OverViewPage 1.0 OverViewPage.qml
+PageStepper 1.0 PageStepper.qml
+ShowcaseView 1.0 ShowcaseView.qml
+ToyAnimations 1.0 ToyAnimations.qml
+ToyBusyIndicator 1.0 ToyBusyIndicator.qml
+ToyButton 1.0 ToyButton.qml
+ToyConfirmPage 1.0 ToyConfirmPage.qml
+ToyCustom 1.0 ToyCustom.qml
+ToyCustomizePage 1.0 ToyCustomizePage.qml
+ToyFinalPage 1.0 ToyFinalPage.qml
+ToyGalleryPage 1.0 ToyGalleryPage.qml
+ToyHeader 1.0 ToyHeader.qml
+ToyImage 1.0 ToyImage.qml
+ToyLabel 1.0 ToyLabel.qml
+ToyView 1.0 ToyView.qml

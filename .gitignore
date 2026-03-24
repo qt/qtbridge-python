@@ -56,6 +56,12 @@ docs/_build/
 # Copied example READMEs (generated during docs build)
 docs/examples/*/
 
+# ToyCustomizer downloaded assets (run fetch_assets.py to obtain)
+examples/toycustomizer/ToyCustomizer/images/
+examples/toycustomizer/ToyCustomizer/meshes/
+examples/toycustomizer/ToyCustomizer/fonts/
+examples/toycustomizer/ToyCustomizer/animations/
+
 # pyenv
 .python-version
 
