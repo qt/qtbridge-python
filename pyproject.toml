@@ -25,8 +25,8 @@ build.verbose = true
 wheel.py-api = "cp39" # align with PySide6 and shiboken6
 wheel.cmake = true
 build.requires = [
-    "shiboken6",
-    "PySide6-Essentials",
+    "shiboken6>=6.11,<6.12",
+    "PySide6-Essentials>=6.11,<6.12",
 ]
 wheel.exclude = [
     "*.cpp",
