@@ -285,8 +285,11 @@ int handleInvokeMethod(AutoQmlBridgeModel *model, int id, int base_id, void **ar
             Shiboken::Errors::Stash stash;
             logPythonException("qt_metacall: call Python method", stash.getException());
         } else {
-            PyErr_SetString(PyExc_RuntimeError, "qt_metacall: Unknown error in Python method");
+            qCWarning(lcQtBridge, "qt_metacall: call Python method: Unknown error (no active Python exception)");
         }
+        // The exception has been logged.  Clear the error state so the next Shiboken-generated
+        // binding call from the Qt event loop is not rejected by PyErr_Occurred() != nullptr.
+        PyErr_Clear();
         return id;
     }
 
