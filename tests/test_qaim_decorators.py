@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
 import os
-import sys
 import pytest
 import tempfile
 from PySide6.QtCore import QUrl, qInstallMessageHandler
@@ -50,7 +49,6 @@ class TestQAIMDecorators:
             messages = [msg for msg in messages if msg['type'] == msg_type]
         return messages
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_insert_with_string_index_appends_gracefully(self, qtbot):
         """Test that passing a string index to @insert decorator"""
         self.setup_message_capture()
@@ -99,7 +97,6 @@ class TestQAIMDecorators:
         finally:
             os.unlink(qml_path)
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_insert_with_valid_numeric_index(self, qtbot):
         """Test that @insert works correctly with valid numeric index"""
         self.setup_message_capture()
@@ -149,7 +146,6 @@ class TestQAIMDecorators:
         finally:
             os.unlink(qml_path)
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_decorator_parameter_validation_basic(self, qtbot):
         """Test basic decorator parameter validation and graceful handling"""
 
@@ -199,7 +195,6 @@ class TestQAIMDecorators:
         assert model.data()[0] == "Item1"
 
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_remove_with_valid_index(self, qtbot):
         """Test @remove called from QML with valid index removes item"""
 
@@ -232,7 +227,6 @@ class TestQAIMDecorators:
         finally:
             os.unlink(qml_path)
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_remove_qml_invalid_index(self, qtbot):
         """Test @remove called from QML with string index fails gracefully and logs error"""
 
@@ -319,7 +313,6 @@ class TestQAIMDecorators:
         finally:
             os.unlink(qml_path)
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_move_qml_invalid_indices(self, qtbot):
         """Test @move called from QML with string indices fails gracefully and logs error"""
         class MoveModel:
@@ -403,7 +396,6 @@ class TestQAIMDecorators:
         finally:
             os.unlink(qml_path)
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_edit_python_missing_arguments(self, qtbot):
         """Test @edit called directly from Python with missing arguments raises TypeError and logs expected message"""
         class EditModel:
@@ -427,7 +419,6 @@ class TestQAIMDecorators:
 
         assert model.data() == ["A", "B"], "No item should be edited if argument is missing"
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_edit_python_invalid_index(self, qtbot):
         """Test @edit called directly from Python with invalid index raises TypeError and logs expected message"""
 

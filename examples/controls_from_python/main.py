@@ -29,13 +29,7 @@ _timer: QTimer | None = None
 
 @qtbridge(qml_file="Main.qml")
 def main(window):
-    """Called automatically by @qtbridge after the QML window is ready.
-
-    TODO: Remove after updating to 6.11
-    Returns the created QML objects so that @qtbridge's _keep_alive list
-    holds references on PySide6 < 6.11 (where QQmlComponent::create() does not 
-    transfer Python ownership).  On 6.11+ this is not needed.
-    """
+    """Called automatically by @qtbridge after the QML window is ready."""
     content = window.contentItem  # drawable area inside the window
     win_w = window.width           # 420
 
@@ -94,12 +88,6 @@ def main(window):
     _timer = QTimer()
     _timer.timeout.connect(advance)
     _timer.start(50)
-
-    # Return all created QML objects.  On PySide6 < 6.11, @qtbridge stores
-    # this list in _keep_alive so Python GC doesn't collect the wrappers
-    # before the event loop exits.  On 6.11+, create() returns Python-owned 
-    # wrappers so this is not needed.
-    return [heading, slider, value_label, reset_btn, status_label]
 
 
 if __name__ == "__main__":

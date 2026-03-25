@@ -3,7 +3,6 @@
 
 import pytest
 import os
-import sys
 import tempfile
 from PySide6.QtCore import QUrl, qInstallMessageHandler, QtMsgType
 from PySide6.QtQml import QQmlApplicationEngine
@@ -287,7 +286,6 @@ class TestErrorHandling:
             finally:
                 os.unlink(qml_path)
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_debug_vs_release_message_format(self, qtbot):
         """Test that debug builds show more detailed messages than release builds"""
         self.setup_message_capture()

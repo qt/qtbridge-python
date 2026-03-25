@@ -3,7 +3,6 @@
 
 from typing import Optional
 import pytest
-import sys
 from PySide6.QtCore import QUrl, qInstallMessageHandler
 from PySide6.QtQml import QQmlApplicationEngine
 from QtBridge import bridge_type
@@ -45,7 +44,6 @@ class TestDefaultProperty:
         box = InvalidBox()
         assert box is not None
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_default_property_qml_assignment(self, qtbot):
         """Test default_property assignment works through QML"""
 

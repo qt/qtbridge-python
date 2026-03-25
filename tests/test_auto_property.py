@@ -8,7 +8,6 @@ Run with:
     QT_LOGGING_RULES="qtbridges.debug=true" QTBRIDGE_DEBUG=1 pytest tests/test_auto_property.py -v
 """
 
-import sys
 import pytest
 from pathlib import Path
 from PySide6.QtCore import QUrl, qInstallMessageHandler

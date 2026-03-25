@@ -7,17 +7,8 @@ import inspect
 from pathlib import Path
 from typing import Any
 
-import PySide6
 from PySide6.QtCore import QMetaMethod, QMetaObject, QObject, QUrl, Qt
 from PySide6.QtQml import QQmlComponent
-
-# create_withownership / createwithinitialproperties_withownership were added in
-# PySide6 6.11.  For 6.10 we fall back to the plain create() API and rely on
-# the caller keeping the returned QmlObject alive (e.g. via @qtbridge's
-# _keep_alive list populated by returning objects from the main() function).
-_PYSIDE6_HAS_OWNERSHIP_HELPERS: bool = (
-    tuple(int(x) for x in PySide6.__version__.split(".")[:2]) >= (6, 11)
-)
 
 try:
     from ._build_config import _logger
@@ -158,16 +149,16 @@ class QmlComponentFactory:
 
         component = QQmlComponent(engine)
 
-        if self._file_path is not None:
-            url = QUrl.fromLocalFile(self._file_path)
-            component.loadUrl(url)
-        elif self._module is not None and self._type_name is not None:
-            component.loadFromModule(self._module, self._type_name)
-        else:
-            raise RuntimeError(
-                "QmlComponentFactory has no valid source. "
-                "Provide either a file path or module + type_name."
-            )
+        match (self._file_path, self._module, self._type_name):
+            case (file_path, _, _) if file_path is not None:
+                component.loadUrl(QUrl.fromLocalFile(file_path))
+            case (_, module, type_name) if module is not None and type_name is not None:
+                component.loadFromModule(module, type_name)
+            case _:
+                raise RuntimeError(
+                    "QmlComponentFactory has no valid source. "
+                    "Provide either a file path or module + type_name."
+                )
 
         if component.isError():
             errors = component.errorString()
@@ -181,19 +172,10 @@ class QmlComponentFactory:
                 f"Errors: {component.errorString()}"
             )
 
-        if _PYSIDE6_HAS_OWNERSHIP_HELPERS:
-            # PySide6 >= 6.11: binding-level helpers return a Python owned
-            # wrapper; no manual keep-alive needed.
-            if initial_properties:
-                obj = component.createWithInitialProperties_withownership(initial_properties)
-            else:
-                obj = component.create_withownership()
+        if initial_properties:
+            obj = component.createWithInitialProperties_withownership(initial_properties)
         else:
-            # PySide6 6.10 fallback: use the standard create() API.
-            if initial_properties:
-                obj = component.createWithInitialProperties(initial_properties)
-            else:
-                obj = component.create()
+            obj = component.create_withownership()
 
         if obj is None:
             raise RuntimeError(

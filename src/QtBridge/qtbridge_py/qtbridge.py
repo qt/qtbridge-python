@@ -23,12 +23,6 @@ except ImportError:
 # used for QML component factories
 _engine: QQmlApplicationEngine | None = None
 
-# Keeps QML-created objects alive on PySide6 < 6.11, where create() does not
-# transfer Python ownership.  Populated by the return value of the user's
-# @qtbridge main() function; cleared when the engine shuts down.
-# TODO: Remove this when PySide6 6.11+ is the minimum supported version
-_keep_alive: list = []
-
 
 def get_engine() -> QQmlApplicationEngine | None:
     """Return the QQmlApplicationEngine created by the active @qtbridge context,
@@ -81,9 +75,7 @@ def qtbridge(
             if not _wants_window:
                 # Standard case: call func() before load so bridge_instance/bridge_type
                 # registrations happen before the QML engine starts.
-                ret = func(*args, **kwargs)
-                if ret is not None:
-                    _keep_alive.append(ret)
+                func(*args, **kwargs)
             else:
                 # Window case: func wants the root window, so defer the call until
                 # after engine.load() via objectCreated.
@@ -103,29 +95,26 @@ def qtbridge(
                     # Wrap the root window in QmlObject so the user can access
                     # properties directly (e.g. window.contentItem, window.width)
                     window = QmlObject(root_objects[0])
-                    ret = _func(window, *_a, **_kw)
-                    if ret is not None:
-                        _keep_alive.append(ret)
+                    _func(window, *_a, **_kw)
 
                 engine.objectCreated.connect(_dispatch)
 
             # --- Load QML content ---
-            if qml_file:
-                qml_path = Path(qml_file)
-                if not qml_path.is_absolute():
-                    qml_path = caller_dir / qml_path
-
-                _logger.debug("Loading QML file: %s", qml_path)
-                engine.load(QUrl.fromLocalFile(str(qml_path)))
-
-            elif module and type_name:
-                _logger.debug("Loading QML module: %s, type: %s", module, type_name)
-                engine.loadFromModule(module, type_name)
-            elif module:
-                _logger.debug("Loading QML module: %s", module)
-                engine.loadFromModule('.', module)
-            else:
-                raise ValueError("Either 'qml_file' or 'module' must be specified.")
+            match (qml_file, module, type_name):
+                case (qf, _, _) if qf:
+                    qml_path = Path(qf)
+                    if not qml_path.is_absolute():
+                        qml_path = caller_dir / qml_path
+                    _logger.debug("Loading QML file: %s", qml_path)
+                    engine.load(QUrl.fromLocalFile(str(qml_path)))
+                case (_, m, tn) if m and tn:
+                    _logger.debug("Loading QML module: %s, type: %s", m, tn)
+                    engine.loadFromModule(m, tn)
+                case (_, m, _) if m:
+                    _logger.debug("Loading QML module: %s", m)
+                    engine.loadFromModule('.', m)
+                case _:
+                    raise ValueError("Either 'qml_file' or 'module' must be specified.")
 
             if not engine.rootObjects():
                 _logger.error("No root QML objects loaded, exiting")
@@ -136,7 +125,6 @@ def qtbridge(
             result = app.exec()
             _logger.debug("Event loop exited with code: %s", result)
             _engine = None
-            _keep_alive.clear()
             del engine
             return result
         return wrapper

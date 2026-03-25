@@ -1,7 +1,6 @@
 # Copyright (C) 2025 The Qt Company Ltd.
 # SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
-import sys
 from pathlib import Path
 from PySide6.QtCore import QUrl, qInstallMessageHandler
 from PySide6.QtQml import QQmlApplicationEngine
@@ -103,7 +102,6 @@ class TestBridgeInstance:
         captured = capsys.readouterr()
         assert "add_string called with Test String" in captured.out
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_no_data_method(self, qtbot, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
         """Test that bridge_instance() succeeds without data() and methods are still callable.
 
@@ -142,7 +140,6 @@ Item {
             # Restore the original data() method
             AutoQmlBridgeTest.data = original_data_method
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_no_data_method_used_as_view_model(self, qtbot, tmp_path: Path):
         """Test that a class without data() emits a warning when used as a QML view model.
         """
@@ -271,7 +268,6 @@ Item {
         assert any("Model registered: true" in msg for msg in messages), \
             f"Expected model to be registered. Got: {messages}"
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_bridge_instance_default_backend_uri(self, qtbot):
         """Test that default uri 'backend' works"""
         class StringListModel:
@@ -305,7 +301,6 @@ Item {
         assert any("Count: 3" in msg for msg in messages), \
             f"Expected 'Count: 3' message. Got: {messages}"
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_bridge_instance_custom_uri(self, qtbot):
         """Test that custom uri works correctly"""
         class CustomUriModel:
@@ -339,7 +334,6 @@ Item {
         assert any("Custom URI Count: 3" in msg for msg in messages), \
             f"Expected 'Custom URI Count: 3' message. Got: {messages}"
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_bridge_instance_invalid_name(self):
         """Test bridge_instance with invalid name (must start with uppercase)"""
         class InvalidNameModel:
@@ -357,7 +351,6 @@ Item {
         assert any("Invalid QML singleton type name" in msg and "invalidName" in msg for msg in messages), \
             f"Expected warning about invalid name, got messages: {messages}"
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_bridge_instance_missing_name(self):
         """Test bridge_instance without name parameter"""
         class NoNameModel:
@@ -544,7 +537,6 @@ Item {
         except Exception as e:
             assert False, f"bridge_instance failed with mixed type list: {e}"
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_bridge_instance_same_name_different_uri(self, qtbot):
         """Test that same name can be used with different URIs"""
         class ModelV1:

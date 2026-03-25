@@ -1,7 +1,6 @@
 # Copyright (C) 2025 The Qt Company Ltd.
 # SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
-import sys
 
 import pytest
 from PySide6.QtCore import QUrl, qInstallMessageHandler
@@ -32,7 +31,6 @@ class TestNestedTypesList:
         """Get all captured console messages"""
         return [msg for msg in self.captured_messages if not msg.startswith("qml:")]
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_nested_widgets_qml_assignment(self, qtbot):
         """Test PyQmlListProperty with nested widgets through QML.
            If this works, it shows that atFunction() and appendFunction() are working correctly."""
@@ -139,7 +137,6 @@ Item {
         assert children_length_msg, f"Expected 'Children length: 3' message. Got: {messages}"
         assert test_complete_msg, f"Expected test complete message. Got: {messages}"
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_clear_and_count_functions_with_signals(self, qtbot):
         """Test PyQmlListProperty clearFunction() and countFunction() with property change signals"""
 

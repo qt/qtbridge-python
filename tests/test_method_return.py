@@ -1,7 +1,6 @@
 # Copyright (C) 2025 The Qt Company Ltd.
 # SPDX-License-Identifier: LicenseRef-Qt-Commercial OR GPL-3.0-only
 
-import sys
 import pytest
 from PySide6.QtCore import QUrl, qInstallMessageHandler
 from PySide6.QtQml import QQmlApplicationEngine
@@ -97,7 +96,6 @@ Item {
         assert any("ListView count: 3" in msg for msg in messages), \
             f"Expected ListView count message, got: {messages}"
 
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_method_returns_model(self, qtbot):
         """Test that a public method returning a registered model works in QML ListView"""
         class UserResource:
