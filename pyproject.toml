@@ -40,6 +40,7 @@ dev = [
     "pytest",
     "pytest-cov",
     "pytest-qt",
+    "pytest-forked>=1.5; sys_platform == 'linux'",
     "mypy",
     "black",
     "flake8"
@@ -61,6 +62,9 @@ docs = [
 testpaths = ["tests"]
 addopts = "-v --tb=short"
 qt_api = "pyside6"
+markers = [
+    "forked: run test in a forked subprocess (no-op on macOS)",
+]
 
 [tool.scikit-build.cmake.define]
 QT_NO_PRIVATE_MODULE_WARNING = "ON"

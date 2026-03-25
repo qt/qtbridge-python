@@ -43,7 +43,8 @@ class TestAutoQmlBridge:
     Workaround:
         @pytest.mark.forked gives each test a clean forked subprocess with a
         fresh QQmlMetaType registry, so only one QRangeModel registration
-        ever occurs per process.
+        ever occurs per process. pytest-forked is only installed on Linux
+        (see pyproject.toml), so the mark is a no-op on macOS and Windows.
     """
 
     def test_bridge_instance_with_list(self, qtbot, tmp_path):
