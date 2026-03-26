@@ -56,7 +56,7 @@ public:
     // Get the Python backend instance
     PyObject *pythonInstance() const { return m_backend; }
 
-    // Extract the common list item in data
+    // Extract the common list item in data (returns a NEW reference. caller must decref)
     PyObject* getDataListItem(PyObject *backend, const QModelIndex &index, const char *errorContext) const;
 
     // DataClass support methods

@@ -22,6 +22,17 @@ else()
     set(QTBRIDGE_DEBUG_BUILD_PY "False")
 endif()
 
+# AddressSanitizer support (debug builds only, enable with -DENABLE_ASAN=ON)
+option(ENABLE_ASAN "Enable AddressSanitizer (requires Debug build)" OFF)
+if(ENABLE_ASAN)
+    if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+        message(FATAL_ERROR "ENABLE_ASAN requires CMAKE_BUILD_TYPE=Debug")
+    endif()
+    message(STATUS "AddressSanitizer ENABLED")
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address)
+endif()
+
 # Generate Python build configuration (mirrors C++ DEBUG_BUILD define)
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/QtBridge/qtbridge_py/_build_config.py.in"

@@ -497,7 +497,9 @@ PyObject* AutoQmlBridgeModel::getDataListItem(PyObject *backend, const QModelInd
     if (row < 0 || row >= PyList_Size(data.object()))
         return {};
 
-    return PyList_GetItem(data.object(), row);
+    // PyList_GetItem returns a borrowed reference; we must return a new
+    // reference so the item survives after the local `data` list is released.
+    return Py_NewRef(PyList_GetItem(data.object(), row));
 }
 
 QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
@@ -517,30 +519,30 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
 
         Shiboken::GilState gil;
 
-        PyObject *item = getDataListItem(m_backend, index,
-            "AutoQmlBridgeModel::data: error calling backend.data() (List)");
+        Shiboken::AutoDecRef item(getDataListItem(m_backend, index,
+            "AutoQmlBridgeModel::data: error calling backend.data() (List)"));
 
-        if (!item)
+        if (item.isNull())
             return {};
 
         // Convert using registered PyObject* -> QVariant converter
-        auto variantOpt = pyObject2VariantOpt(item);
+        auto variantOpt = pyObject2VariantOpt(item.object());
         return variantOpt.value_or(QVariant());
     }
     case DataType::DataClassList: {
         Shiboken::GilState gil;
 
-        PyObject *dataclassItem = getDataListItem(m_backend, index,
-            "AutoQmlBridgeModel::data: error calling backend.data() (DataClassList)");
+        Shiboken::AutoDecRef dataclassItem(getDataListItem(m_backend, index,
+            "AutoQmlBridgeModel::data: error calling backend.data() (DataClassList)"));
 
-        if (!dataclassItem)
+        if (dataclassItem.isNull())
             return {};
 
         // For DisplayRole with a valid column, use column index to get field
         if (role == Qt::DisplayRole && index.column() >= 0
             && index.column() < m_dataClassFieldNames.size()) {
             const QByteArray &fieldName = m_dataClassFieldNames.at(index.column());
-            PyObject *fieldValue = PyObject_GetAttrString(dataclassItem, fieldName.constData());
+            PyObject *fieldValue = PyObject_GetAttrString(dataclassItem.object(), fieldName.constData());
             if (!fieldValue) {
                 PyErr_Clear();
                 return {};
@@ -556,7 +558,7 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
         if (fieldName.isEmpty()) {
             // Fallback to display role - return string representation
             if (role == Qt::DisplayRole) {
-                Shiboken::AutoDecRef strObj(PyObject_Str(dataclassItem));
+                Shiboken::AutoDecRef strObj(PyObject_Str(dataclassItem.object()));
                 if (!strObj.isNull() && PyUnicode_Check(strObj.object())) {
                     const char *utf8 = Shiboken::String::toCString(strObj.object());
                     if (utf8)
@@ -567,7 +569,7 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
         }
 
         // Get the field value using getattr
-        PyObject *fieldValue = PyObject_GetAttrString(dataclassItem, fieldName.constData());
+        PyObject *fieldValue = PyObject_GetAttrString(dataclassItem.object(), fieldName.constData());
         if (!fieldValue) {
             PyErr_Clear(); // Clear the AttributeError
             return {};
@@ -581,13 +583,13 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
     case DataType::DictList: {
         Shiboken::GilState gil;
 
-        PyObject *item = getDataListItem(m_backend, index,
-            "AutoQmlBridgeModel::data: error calling backend.data() (DictList)");
+        Shiboken::AutoDecRef item(getDataListItem(m_backend, index,
+            "AutoQmlBridgeModel::data: error calling backend.data() (DictList)"));
 
-        if (!item)
+        if (item.isNull())
             return {};
 
-        if (!PyDict_Check(item)) {
+        if (!PyDict_Check(item.object())) {
             PyErr_SetString(PyExc_TypeError, "AutoQmlBridgeModel::data: Expected dictionary (DictList)");
             return {};
         }
@@ -597,7 +599,7 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
             int col = index.column();
             if (col >= 0 && col < m_dictKeyNames.size()) {
                 const QByteArray &key = m_dictKeyNames.at(col);
-                PyObject *value = PyDict_GetItemString(item, key.constData());
+                PyObject *value = PyDict_GetItemString(item.object(), key.constData());
                 if (value) {
                     auto variantOpt = pyObject2VariantOpt(value);
                     return variantOpt.value_or(QVariant());
@@ -611,7 +613,7 @@ QVariant AutoQmlBridgeModel::data(const QModelIndex &index, int role) const
 
         if (!roleName.isEmpty()) {
             // Look up the value in the dict
-            PyObject *value = PyDict_GetItemString(item, roleName.constData());
+            PyObject *value = PyDict_GetItemString(item.object(), roleName.constData());
             if (value) {
                 auto variantOpt = pyObject2VariantOpt(value);
                 return variantOpt.value_or(QVariant());
