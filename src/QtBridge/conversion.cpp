@@ -8,6 +8,7 @@
 #include <sbkstring.h>
 #include <pysidevariantutils.h>
 #include <signalmanager.h>
+#include <autodecref.h>
 
 #include <QtCore/qvariant.h>
 #include <QtCore/qmetatype.h>
@@ -49,6 +50,45 @@ std::optional<bool> pyObject2BoolOpt(PyObject *obj)
     return std::nullopt;
 }
 
+// Convert a Python dataclass instance to a QVariantMap by reading __dataclass_fields__.
+// Each field becomes a key in the map
+// values are recursively converted via pyObject2VariantOpt.
+// Returns std::nullopt if obj is not a dataclass instance.
+static std::optional<QVariant> pyDataclassToVariantMapOpt(PyObject *obj)
+{
+    if (!obj || obj == Py_None)
+        return std::nullopt;
+
+    if (!PyObject_HasAttrString(obj, "__dataclass_fields__"))
+        return std::nullopt;
+
+    Shiboken::AutoDecRef fields(PyObject_GetAttrString(obj, "__dataclass_fields__"));
+    if (!fields || !PyDict_Check(fields.object()))
+        return std::nullopt;
+
+    QVariantMap map;
+    PyObject *key = nullptr;
+    PyObject *fieldDescriptor = nullptr;
+    Py_ssize_t pos = 0;
+
+    while (PyDict_Next(fields.object(), &pos, &key, &fieldDescriptor)) {
+        const char *fieldName = Shiboken::String::toCString(key);
+        if (!fieldName)
+            continue;
+
+        Shiboken::AutoDecRef fieldValue(PyObject_GetAttrString(obj, fieldName));
+        if (!fieldValue) {
+            PyErr_Clear();
+            continue;
+        }
+
+        auto variant = pyObject2VariantOpt(fieldValue.object());
+        map.insert(QString::fromUtf8(fieldName), variant.has_value() ? *variant : QVariant{});
+    }
+
+    return QVariant(map);
+}
+
 std::optional<QVariant> pyObject2VariantOpt(PyObject *obj)
 {
     if (!obj)
@@ -83,11 +123,17 @@ std::optional<QVariant> pyObject2VariantOpt(PyObject *obj)
     }
 
     // Handle lists and tuples
+    // iterate manually so dataclass items are converted to QVariantMap
     if (PyList_Check(obj) || PyTuple_Check(obj)) {
-        QVariant list = PySide::Variant::convertToVariantList(obj);
-        if (list.isValid())
-            return list;
-        return std::nullopt;
+        const Py_ssize_t len = PyList_Check(obj) ? PyList_Size(obj) : PyTuple_Size(obj);
+        QVariantList result;
+        result.reserve(static_cast<qsizetype>(len));
+        for (Py_ssize_t i = 0; i < len; ++i) {
+            PyObject *item = PyList_Check(obj) ? PyList_GetItem(obj, i) : PyTuple_GetItem(obj, i);
+            auto v = pyObject2VariantOpt(item); // recursive conversion specially for dataclass
+            result.append(v.has_value() ? *v : QVariant{});
+        }
+        return QVariant(result);
     }
 
     // Handle dictionaries
@@ -96,6 +142,13 @@ std::optional<QVariant> pyObject2VariantOpt(PyObject *obj)
         if (map.isValid())
             return map;
         return std::nullopt;
+    }
+
+    // Converts a dataclass instance to QVariantMap
+    auto dcVariant = pyDataclassToVariantMapOpt(obj);
+    if (dcVariant.has_value()) {
+        qCDebug(lcQtBridge, "Converted Python dataclass to QVariantMap");
+        return *dcVariant;
     }
 
     // Fallback: Wrap Python object in PyObjectWrapper for custom Python classes
