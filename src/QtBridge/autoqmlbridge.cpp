@@ -91,27 +91,87 @@ QByteArray getReturnTypeName(PyObject *method, const char *methodName)
             //     }
             // }
 
-            if (returnTypeObj && PyType_Check(returnTypeObj)) {
-                const char* name = reinterpret_cast<PyTypeObject*>(returnTypeObj)->tp_name;
-                if (name) {
-                    if (qstrcmp(name, "list") == 0) {
+            if (returnTypeObj) {
+                // Case 1: 'from __future__ import annotations'
+                // Annotations are stored as strings rather than type objects.
+                if (PyUnicode_Check(returnTypeObj)) {
+                    const char *name = Shiboken::String::toCString(returnTypeObj);
+                    if (name) {
+                        // Prefix match handles generic forms: "list[str]", "dict[str, int]"
+                        if (qstrncmp(name, "list", 4) == 0) {
+                            qCDebug(lcQtBridge,
+                                    "Method %s has string annotation '%s', registering as QVariantList",
+                                    methodName, name);
+                            return "QVariantList";
+                        }
+                        if (qstrncmp(name, "dict", 4) == 0) {
+                            qCDebug(lcQtBridge,
+                                    "Method %s has string annotation '%s', registering as QVariantMap",
+                                    methodName, name);
+                            return "QVariantMap";
+                        }
+                        if (qstrcmp(name, "None") == 0)
+                            return "void";
+                        // All other concrete types (str, int, float, bool, custom, ...)
                         qCDebug(lcQtBridge,
-                                "Method %s has return type annotation 'list', registering as QVariantList",
-                                methodName);
-                        return "QVariantList";
-                    }
-                    if (qstrcmp(name, "dict") == 0) {
-                        qCDebug(lcQtBridge,
-                                "Method %s has return type annotation 'dict', registering as QVariantMap",
-                                methodName);
-                        return "QVariantMap";
+                                "Method %s has string annotation '%s', registering as QVariant",
+                                methodName, name);
+                        return "QVariant";
                     }
                 }
-                // For all other types, use QVariant as fallback
-                qCDebug(lcQtBridge,
-                        "Method %s has return type annotation, registering as QVariant",
-                        methodName);
-                return "QVariant";
+
+                // Case 2: Bare type object (e.g. bare 'list' or 'str' without __future__)
+                if (PyType_Check(returnTypeObj)) {
+                    const char* name = reinterpret_cast<PyTypeObject*>(returnTypeObj)->tp_name;
+                    if (name) {
+                        if (qstrcmp(name, "list") == 0) {
+                            qCDebug(lcQtBridge,
+                                    "Method %s has return type annotation 'list', registering as QVariantList",
+                                    methodName);
+                            return "QVariantList";
+                        }
+                        if (qstrcmp(name, "dict") == 0) {
+                            qCDebug(lcQtBridge,
+                                    "Method %s has return type annotation 'dict', registering as QVariantMap",
+                                    methodName);
+                            return "QVariantMap";
+                        }
+                    }
+                    // For all other types, use QVariant as fallback
+                    qCDebug(lcQtBridge,
+                            "Method %s has return type annotation, registering as QVariant",
+                            methodName);
+                    return "QVariant";
+                }
+
+                // Case 3: GenericAlias (e.g. list[str], dict[str, int] without __future__).
+                // These have an __origin__ attribute pointing to the underlying base type.
+                if (PyObject_HasAttrString(returnTypeObj, "__origin__")) {
+                    Shiboken::AutoDecRef origin(
+                        PyObject_GetAttrString(returnTypeObj, "__origin__"));
+                    if (!origin.isNull() && PyType_Check(origin.object())) {
+                        const char *name =
+                            reinterpret_cast<PyTypeObject*>(origin.object())->tp_name;
+                        if (name) {
+                            if (qstrcmp(name, "list") == 0) {
+                                qCDebug(lcQtBridge,
+                                        "Method %s has GenericAlias annotation with origin 'list', "
+                                        "registering as QVariantList", methodName);
+                                return "QVariantList";
+                            }
+                            if (qstrcmp(name, "dict") == 0) {
+                                qCDebug(lcQtBridge,
+                                        "Method %s has GenericAlias annotation with origin 'dict', "
+                                        "registering as QVariantMap", methodName);
+                                return "QVariantMap";
+                            }
+                        }
+                    }
+                    qCDebug(lcQtBridge,
+                            "Method %s has GenericAlias annotation, registering as QVariant",
+                            methodName);
+                    return "QVariant";
+                }
             }
         }
     }
