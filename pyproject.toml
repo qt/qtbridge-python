@@ -58,6 +58,13 @@ docs = [
 ]
 
 
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+# E501 (line-too-long) is in E5xx which ruff excludes by default
+extend-select = ["E501"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
