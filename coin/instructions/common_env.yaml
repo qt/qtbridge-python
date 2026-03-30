@@ -3,6 +3,47 @@ instructions:
   - type: EnvironmentVariable
     variableName: QTEST_ENVIRONMENT
     variableValue: "ci"
+  - type: ExecuteCommand
+    command: "sudo subscription-manager refresh"
+    ignoreExitCode: true
+    maxTimeInSeconds: 6000
+    maxTimeBetweenOutput: 1200
+    enable_if:
+        condition: property
+        property: host.osVersion
+        in_values: [RHEL_9_2, RHEL_9_4, RHEL_9_6]
+    userMessageOnFailure: >
+      Failed to refresh subscription.
+
+  - type: ExecuteCommand
+    command: "sudo yum -y install python3.11-devel python3.11-pip"
+    maxTimeInSeconds: 14400
+    maxTimeBetweenOutput: 1200
+    enable_if:
+        condition: property
+        property: host.osVersion
+        in_values: [RHEL_9_2, RHEL_9_4, RHEL_9_6]
+    userMessageOnFailure: >
+        Failed to install python 3.11
+
+  # Set default python3 for MacOS and Linux
+  - type: EnvironmentVariable
+    variableName: interpreter
+    variableValue: "python3"
+    enable_if:
+        condition: property
+        property: host.os
+        in_values: [Linux, MacOS]
+
+  # Override python3 for RHEL
+  - type: EnvironmentVariable
+    variableName: interpreter
+    variableValue: "python3.11"
+    enable_if:
+        condition: property
+        property: host.osVersion
+        in_values: [RHEL_9_2, RHEL_9_4, RHEL_9_6]
+
   - type: AppendToEnvironmentVariable
     variableName: PATH
     variableValue: ":{{.AgentWorkingDir}}/install/bin/"

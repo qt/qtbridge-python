@@ -7,7 +7,7 @@ instructions:
     userMessageOnFailure: >
       Failed to change to python dir
   - type: ExecuteCommand
-    command: "virtualenv env"
+    command: "virtualenv -p {{.Env.interpreter}} env"
     maxTimeInSeconds: 6000
     maxTimeBetweenOutput: 1200
     disable_if:
@@ -15,7 +15,7 @@ instructions:
       property: host.os
       equals_value: Windows
     userMessageOnFailure: >
-      Failed to create virtualenv.
+      Failed to create virtualenv for MacOS or Linux.
   - type: ExecuteCommand
     command: "virtualenv -p C:\\Python310_64\\python.exe env"
     maxTimeInSeconds: 6000
