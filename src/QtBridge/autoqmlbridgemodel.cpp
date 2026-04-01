@@ -883,7 +883,27 @@ void AutoQmlBridgeModel::startInsertCol(int first, int last)
 void AutoQmlBridgeModel::finishInsertCol()
 {
     endInsertColumns();
-    setupDictRoles();
+
+    switch (m_datatype) {
+        // TODO: If the frozen field is used throw runtime error
+        // Insert column operations -> column_name, value and index
+        // Is it possible to add list of elements for value?
+        // Tests will be added for this case
+        case DataType::DataClassList:
+            m_dataClassFieldNames.clear();
+            setupDataClassRoles();
+            break;
+        case DataType::DictList:
+            m_dictKeyNames.clear();
+            setupDictRoles();
+            break;
+        case DataType::Table:
+            m_tableColumnNames.clear();
+            setupTableRoles();
+            break;
+        default:
+            break;
+    }
 }
 
 void AutoQmlBridgeModel::startRemove(int first, int last)
