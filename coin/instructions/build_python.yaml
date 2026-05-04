@@ -67,6 +67,16 @@ instructions:
     maxTimeBetweenOutput: 1200
     userMessageOnFailure: >
       Failed to install pyside.
+  - type: ExecuteCommand
+    command: "{{.Env.ENV_PIP}} install repairwheel"
+    maxTimeInSeconds: 600
+    maxTimeBetweenOutput: 120
+    enable_if:
+      condition: property
+      property: host.os
+      equals_value: Linux
+    userMessageOnFailure: >
+      Failed to install repairwheel.
   - type: ChangeDirectory
     directory: "{{.AgentWorkingDir}}/qt/qtbridge-python/"
     maxTimeInSeconds: 300
@@ -93,6 +103,39 @@ instructions:
       equals_value: Windows
     userMessageOnFailure: >
       Failed to build wheel.
+  # Detect site-packages directory and write to file
+  - type: ExecuteCommand
+    command: ["{{.AgentWorkingDir}}/qt/qtbridge-python/env/bin/python", "-c", "import site; open('/tmp/site_packages_path.txt','w').write('SITE_PACKAGES=' + site.getsitepackages()[0])"]
+    maxTimeInSeconds: 120
+    maxTimeBetweenOutput: 60
+    enable_if:
+      condition: property
+      property: host.os
+      equals_value: Linux
+    userMessageOnFailure: >
+      Failed to detect site-packages directory.
+  # Parse SITE_PACKAGES from file
+  - type: ParseEnvironmentVariableFromFile
+    regex: "SITE_PACKAGES=(?P<SITE_PACKAGES>.*)"
+    filename: "/tmp/site_packages_path.txt"
+    maxTimeInSeconds: 60
+    maxTimeBetweenOutput: 30
+    enable_if:
+      condition: property
+      property: host.os
+      equals_value: Linux
+    userMessageOnFailure: "Failed to parse SITE_PACKAGES path"
+  # Repair wheel using repairwheel with detected site-packages path
+  - type: ExecuteCommand
+    command: "{{.AgentWorkingDir}}/qt/qtbridge-python/env/bin/repairwheel -o repaired_wheels -l {{.Env.SITE_PACKAGES}}/PySide6 -l {{.Env.SITE_PACKAGES}}/shiboken6 -l {{.Env.SITE_PACKAGES}}/PySide6/Qt/lib qtbridge-*-linux_*.whl"
+    maxTimeInSeconds: 600
+    maxTimeBetweenOutput: 120
+    enable_if:
+      condition: property
+      property: host.os
+      equals_value: Linux
+    userMessageOnFailure: >
+      Failed to repair wheel with repairwheel.
 
   - type: ExecuteCommand
     command: "{{.Env.ENV_PIP}} install pytest pytest-cov pytest-qt numpy"
